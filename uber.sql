@@ -17,7 +17,8 @@ CREATE TABLE Motorista (
 	nome VARCHAR NOT NULL,
 	email VARCHAR NOT NULL, -- checar
 	telefone INT NOT NULL, -- checar
-	carro INT NOT NULL,
+	carro INT NOT NULL, -- checar
+	nota INT DEFAULT 0, -- calcular
 	
 	CONSTRAINT PK_Motorista PRIMARY KEY (cpf),
 	CONSTRAINT FK_Carro FOREIGN KEY (carro) REFERENCES Carro (renavam)
@@ -53,6 +54,7 @@ CREATE TABLE Corrida (
 	time_fim TIMESTAMP NOT NULL,
 	end_origem VARCHAR NOT NULL,
 	end_destino VARCHAR NOT NULL,
+	avaliacao INT, -- NULL até o passageiro fazer sua avaliação da corrida
 	
 	CONSTRAINT PK_Corrida PRIMARY KEY (passageiro, time_inicio),
 	CONSTRAINT FK_Passageiro FOREIGN KEY (passageiro) REFERENCES Passageiro (cpf),
@@ -60,6 +62,7 @@ CREATE TABLE Corrida (
 	CONSTRAINT FK_Categoria FOREIGN KEY (categoria) REFERENCES Categoria (id)
 );
 
+-- atualizar com campos que faltam
 INSERT INTO Passageiro VALUES('123.456.789-10', 'Joao', 'joao@email.com', 26696969);
 INSERT INTO Passageiro VALUES('987.654.321-00', 'Maria', 'maria@email.com', 26696969);
 INSERT INTO Passageiro VALUES('696.969.696.96', 'Rogerinho', 'djrpdfdtpe1395271@hotmail123.com', 964865952);
