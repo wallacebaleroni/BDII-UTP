@@ -13,7 +13,7 @@ CREATE TABLE Passageiro (
 
 DROP TABLE IF EXISTS Motorista CASCADE;
 CREATE TABLE Motorista (
-	cpf VARCHAR NOT NULL, -- checar
+	cpf CHAR(11) NOT NULL, -- checar
 	nome VARCHAR NOT NULL,
 	email VARCHAR NOT NULL, -- checar
 	telefone INT NOT NULL, -- checar
@@ -37,6 +37,16 @@ CREATE TABLE Carro (
 	CONSTRAINT FK_Categoria FOREIGN KEY (categoria) REFERENCES Categoria (id)
 );
 
+DROP TABLE IF EXIST Possui CASCADE;
+CREATE TABLE Possui (
+	motorista CHAR(11) NOT NULL,
+	carro INT NOT NULL,
+	
+	CONSTRAINT PK_Possui PRIMARY KEY (motorista, carro),
+	CONSTRAINT FK_Motorista FOREIGN KEY (motorista) REFERENCES Motorista (cpf),
+	CONSTRAINT FK_Carro FOREIGN KEY (carro) REFERENCES Carro (renavam)
+);
+
 DROP TABLE IF EXISTS Categoria CASCADE;
 CREATE TABLE Categoria (
 	id INT NOT NULL,
@@ -47,8 +57,8 @@ CREATE TABLE Categoria (
 
 DROP TABLE IF EXISTS Corrida CASCADE;
 CREATE TABLE Corrida (
-	passageiro VARCHAR NOT NULL,
-	motorista VARCHAR NOT NULL,
+	passageiro CHAR(11) NOT NULL,
+	motorista CHAR(11) NOT NULL,
 	categoria INT NOT NULL,
 	time_inicio TIMESTAMP NOT NULL,
 	time_fim TIMESTAMP NOT NULL,
