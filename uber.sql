@@ -1,10 +1,10 @@
 DROP TABLE IF EXISTS Passageiro CASCADE;
 CREATE TABLE Passageiro (
-	cpf CHAR(11) NOT NULL, -- checar
+	cpf CHAR(11) NOT NULL,
 	nome VARCHAR NOT NULL,
-	email VARCHAR NOT NULL, -- checar
-	telefone INT NOT NULL, -- checar
-	nota INT DEFAULT 0, -- calcular
+	email VARCHAR NOT NULL,
+	telefone INT NOT NULL,
+	nota INT DEFAULT 0,
 	endereco_casa VARCHAR,
 	endereco_trabalho VARCHAR,
 	
@@ -35,11 +35,11 @@ CREATE TABLE Carro (
 
 DROP TABLE IF EXISTS Motorista CASCADE;
 CREATE TABLE Motorista (
-	cpf CHAR(11) NOT NULL, -- checar
+	cpf CHAR(11) NOT NULL,
 	nome VARCHAR NOT NULL,
-	email VARCHAR NOT NULL, -- checar
-	telefone INT NOT NULL, -- checar
-	carro INT NOT NULL, -- checar
+	email VARCHAR NOT NULL,
+	telefone INT NOT NULL,
+	carro INT NOT NULL,
 	nota INT DEFAULT 0, -- calcular
 	
 	CONSTRAINT PK_Motorista PRIMARY KEY (cpf),
@@ -79,6 +79,10 @@ CREATE TABLE Corrida (
 
 CREATE OR REPLACE FUNCTION verif_passageiro() RETURNS trigger AS $$
 BEGIN
+    IF NEW.cpf NOT SIMILAR TO '[0-9]*' THEN
+        RAISE EXCEPTION 'O número de CPF inserido parece inválido.';
+    END IF;
+    
 	IF position('@' in NEW.email) = 0 OR position('.' in NEW.email) = 0 THEN
 		RAISE EXCEPTION 'O email inserido parece inválido.';
 	END IF;
@@ -90,6 +94,27 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER verif_passageiro
 BEFORE INSERT ON Passageiro
 FOR EACH ROW EXECUTE PROCEDURE verif_passageiro();
+
+
+CREATE OR REPLACE FUNCTION verif_motorista() RETURNS trigger AS $$
+BEGIN
+	IF NEW.cpf NOT SIMILAR TO '[0-9]*' THEN
+        RAISE EXCEPTION 'O número de CPF inserido parece inválido.';
+    END IF;
+    
+	IF position('@' in NEW.email) = 0 OR position('.' in NEW.email) = 0 THEN
+		RAISE EXCEPTION 'O email inserido parece inválido.';
+	END IF;
+
+RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER verif_motorista
+BEFORE INSERT ON Motorista
+FOR EACH ROW EXECUTE PROCEDURE verif_motorista();
+
+
 
 /*****/
 
@@ -116,3 +141,4 @@ SELECT * FROM Categoria;
 SELECT * FROM Carro;
 SELECT * FROM Motorista;
 SELECT * FROM Corrida;
+SELECT * FROM Possui;
