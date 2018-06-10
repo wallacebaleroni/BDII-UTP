@@ -1,4 +1,10 @@
 DROP TABLE IF EXISTS Passageiro CASCADE;
+DROP TABLE IF EXISTS Categoria CASCADE;
+DROP TABLE IF EXISTS Carro CASCADE;
+DROP TABLE IF EXISTS Motorista CASCADE;
+DROP TABLE IF EXISTS Possui CASCADE;
+DROP TABLE IF EXISTS Corrida CASCADE;
+
 CREATE TABLE Passageiro (
 	cpf CHAR(11) NOT NULL,
 	nome VARCHAR NOT NULL,
@@ -11,7 +17,6 @@ CREATE TABLE Passageiro (
 	CONSTRAINT PK_Passageiro PRIMARY KEY (cpf)
 );
 
-DROP TABLE IF EXISTS Categoria CASCADE;
 CREATE TABLE Categoria (
 	id INT NOT NULL,
 	nome VARCHAR NOT NULL,
@@ -19,7 +24,6 @@ CREATE TABLE Categoria (
 	CONSTRAINT PK_Categoria PRIMARY KEY (id)
 );
 
-DROP TABLE IF EXISTS Carro CASCADE;
 CREATE TABLE Carro (
 	renavam INT NOT NULL,
 	placa CHAR(7) NOT NULL, -- checar
@@ -32,8 +36,6 @@ CREATE TABLE Carro (
 	CONSTRAINT FK_Categoria FOREIGN KEY (categoria) REFERENCES Categoria (id)
 );
 
-
-DROP TABLE IF EXISTS Motorista CASCADE;
 CREATE TABLE Motorista (
 	cpf CHAR(11) NOT NULL,
 	nome VARCHAR NOT NULL,
@@ -46,8 +48,6 @@ CREATE TABLE Motorista (
 	CONSTRAINT FK_Carro FOREIGN KEY (carro) REFERENCES Carro (renavam)
 );
 
-
-DROP TABLE IF EXISTS Possui CASCADE;
 CREATE TABLE Possui (
 	motorista CHAR(11) NOT NULL,
 	carro INT NOT NULL,
@@ -57,8 +57,6 @@ CREATE TABLE Possui (
 	CONSTRAINT FK_Carro FOREIGN KEY (carro) REFERENCES Carro (renavam)
 );
 
-
-DROP TABLE IF EXISTS Corrida CASCADE;
 CREATE TABLE Corrida (
 	passageiro CHAR(11) NOT NULL,
 	motorista CHAR(11) NOT NULL,
@@ -74,6 +72,7 @@ CREATE TABLE Corrida (
 	CONSTRAINT FK_Motorista FOREIGN KEY (motorista) REFERENCES Motorista (cpf),
 	CONSTRAINT FK_Categoria FOREIGN KEY (categoria) REFERENCES Categoria (id)
 );
+
 
 /* triggers */
 
@@ -113,8 +112,6 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER verif_motorista
 BEFORE INSERT ON Motorista
 FOR EACH ROW EXECUTE PROCEDURE verif_motorista();
-
-
 
 /*****/
 
