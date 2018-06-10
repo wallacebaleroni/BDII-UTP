@@ -11,17 +11,12 @@ CREATE TABLE Passageiro (
 	CONSTRAINT PK_Passageiro PRIMARY KEY (cpf)
 );
 
-DROP TABLE IF EXISTS Motorista CASCADE;
-CREATE TABLE Motorista (
-	cpf CHAR(11) NOT NULL, -- checar
+DROP TABLE IF EXISTS Categoria CASCADE;
+CREATE TABLE Categoria (
+	id INT NOT NULL,
 	nome VARCHAR NOT NULL,
-	email VARCHAR NOT NULL, -- checar
-	telefone INT NOT NULL, -- checar
-	carro INT NOT NULL, -- checar
-	nota INT DEFAULT 0, -- calcular
 	
-	CONSTRAINT PK_Motorista PRIMARY KEY (cpf),
-	CONSTRAINT FK_Carro FOREIGN KEY (carro) REFERENCES Carro (renavam)
+	CONSTRAINT PK_Categoria PRIMARY KEY (id)
 );
 
 DROP TABLE IF EXISTS Carro CASCADE;
@@ -37,7 +32,22 @@ CREATE TABLE Carro (
 	CONSTRAINT FK_Categoria FOREIGN KEY (categoria) REFERENCES Categoria (id)
 );
 
-DROP TABLE IF EXIST Possui CASCADE;
+
+DROP TABLE IF EXISTS Motorista CASCADE;
+CREATE TABLE Motorista (
+	cpf CHAR(11) NOT NULL, -- checar
+	nome VARCHAR NOT NULL,
+	email VARCHAR NOT NULL, -- checar
+	telefone INT NOT NULL, -- checar
+	carro INT NOT NULL, -- checar
+	nota INT DEFAULT 0, -- calcular
+	
+	CONSTRAINT PK_Motorista PRIMARY KEY (cpf),
+	CONSTRAINT FK_Carro FOREIGN KEY (carro) REFERENCES Carro (renavam)
+);
+
+
+DROP TABLE IF EXISTS Possui CASCADE;
 CREATE TABLE Possui (
 	motorista CHAR(11) NOT NULL,
 	carro INT NOT NULL,
@@ -47,13 +57,6 @@ CREATE TABLE Possui (
 	CONSTRAINT FK_Carro FOREIGN KEY (carro) REFERENCES Carro (renavam)
 );
 
-DROP TABLE IF EXISTS Categoria CASCADE;
-CREATE TABLE Categoria (
-	id INT NOT NULL,
-	nome VARCHAR NOT NULL,
-	
-	CONSTRAINT PK_Categoria PRIMARY KEY (id)
-);
 
 DROP TABLE IF EXISTS Corrida CASCADE;
 CREATE TABLE Corrida (
@@ -72,10 +75,27 @@ CREATE TABLE Corrida (
 	CONSTRAINT FK_Categoria FOREIGN KEY (categoria) REFERENCES Categoria (id)
 );
 
--- atualizar com campos que faltam
-INSERT INTO Passageiro VALUES('123.456.789-10', 'Joao', 'joao@email.com', 26696969);
-INSERT INTO Passageiro VALUES('987.654.321-00', 'Maria', 'maria@email.com', 26696969);
-INSERT INTO Passageiro VALUES('696.969.696.96', 'Rogerinho', 'djrpdfdtpe1395271@hotmail123.com', 964865952);
+/* triggers */
+
+CREATE OR REPLACE FUNCTION verif_passageiro() RETURNS trigger AS $$
+BEGIN
+	IF position('@' in NEW.email) = 0 OR position('.' in NEW.email) = 0 THEN
+		RAISE EXCEPTION 'O email inserido parece inválido.';
+	END IF;
+
+RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER verif_passageiro
+BEFORE INSERT ON Passageiro
+FOR EACH ROW EXECUTE PROCEDURE verif_passageiro();
+
+/*****/
+
+INSERT INTO Passageiro VALUES('12345678910', 'Joao', 'joao@email.com', 26696969);
+INSERT INTO Passageiro VALUES('98765432100', 'Maria', 'maria@email.com', 26696969);
+INSERT INTO Passageiro VALUES('69696969696', 'Rogerinho', 'djrpdfdtpe1395271@hotmail123.com', 964865952);
 
 INSERT INTO Categoria VALUES(1, 'UberX');
 INSERT INTO Categoria VALUES(2, 'UberBlack');
@@ -88,8 +108,8 @@ INSERT INTO Motorista VALUES('10293847560', 'Jorge', 'jorge@bol.com', 12443857, 
 INSERT INTO Motorista VALUES('12133454324', 'Marcos', 'marcos@uol.com', 84782478, 5678);
 INSERT INTO Motorista VALUES('64578854645', 'Roger', 'roger@aol.com', 17654378, 5678);
 
-INSERT INTO Corrida VALUES('12345678910', '102.938.475-60', 1, now(), now(), 'Aqui', 'Ali');
-INSERT INTO Corrida VALUES('98765432100', '121.334.543-24', 2, now(), now(), 'Ali', 'Aqui');
+INSERT INTO Corrida VALUES('12345678910', '10293847560', 1, now(), now(), 'Aqui', 'Ali');
+INSERT INTO Corrida VALUES('98765432100', '12133454324', 2, now(), now(), 'Ali', 'Aqui');
 
 SELECT * FROM Passageiro;
 SELECT * FROM Categoria;
