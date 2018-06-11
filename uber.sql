@@ -2,21 +2,24 @@ DROP TABLE IF EXISTS Passageiro CASCADE;
 DROP TABLE IF EXISTS Categoria CASCADE;
 DROP TABLE IF EXISTS Carro CASCADE;
 DROP TABLE IF EXISTS Motorista CASCADE;
-DROP TABLE IF EXISTS Possui CASCADE;
 DROP TABLE IF EXISTS Corrida CASCADE;
+DROP TABLE IF EXISTS Pedido CASCADE;
 
+
+/* usuários que atuam como passageiros */
 CREATE TABLE Passageiro (
 	cpf CHAR(11) NOT NULL,
 	nome VARCHAR NOT NULL,
 	email VARCHAR NOT NULL,
 	telefone INT NOT NULL,
-	nota INT DEFAULT 0,
+	avaliacao INT DEFAULT 0, -- nota média do usuário
 	endereco_casa VARCHAR,
 	endereco_trabalho VARCHAR,
 	
 	CONSTRAINT PK_Passageiro PRIMARY KEY (cpf)
 );
 
+/* categorias de serviço (UberX, UberBlack...) */
 CREATE TABLE Categoria (
 	id INT NOT NULL,
 	nome VARCHAR NOT NULL,
@@ -24,6 +27,7 @@ CREATE TABLE Categoria (
 	CONSTRAINT PK_Categoria PRIMARY KEY (id)
 );
 
+/* carros cadastrados e sendo utilizados para prestar o serviço */
 CREATE TABLE Carro (
 	renavam INT NOT NULL,
 	placa CHAR(7) NOT NULL, -- checar
@@ -33,44 +37,67 @@ CREATE TABLE Carro (
 	categoria INT NOT NULL,
 	
 	CONSTRAINT PK_Carro PRIMARY KEY (renavam),
-	CONSTRAINT FK_Categoria FOREIGN KEY (categoria) REFERENCES Categoria (id)
+	CONSTRAINT FK_Categoria FOREIGN KEY (categoria) REFERENCES Categoria (id) -- relação: carro atende categoria
 );
 
+-- usuários que atuam como motoristas
 CREATE TABLE Motorista (
 	cpf CHAR(11) NOT NULL,
 	nome VARCHAR NOT NULL,
 	email VARCHAR NOT NULL,
 	telefone INT NOT NULL,
-	carro INT NOT NULL,
-	nota INT DEFAULT 0, -- calcular
+	carro INT NOT NULL, -- cada motorista só pode ter um carro cadastrado no Uber
+	avaliacao REAL DEFAULT 0, -- avaliação média do motorista, de 1 a 5
 	
 	CONSTRAINT PK_Motorista PRIMARY KEY (cpf),
-	CONSTRAINT FK_Carro FOREIGN KEY (carro) REFERENCES Carro (renavam)
+	CONSTRAINT FK_Carro FOREIGN KEY (carro) REFERENCES Carro (renavam) -- relação: motorista possui carro
 );
 
-CREATE TABLE Possui (
-	motorista CHAR(11) NOT NULL,
-	carro INT NOT NULL,
+CREATE TABLE Pedido (
+	passageiro CHAR(11) NOT NULL,
+	time_aberto TIMESTAMP NOT NULL, -- hora em que o pedido foi feito
+	time_fechado TIMESTAMP, -- hora em que o pedido foi fechado (atendido ou cancelado)
+	status VARCHAR NOT NULL, -- "em aberto" (buscando motorista), "atendido" (virou uma corrida), "cancelado"
+	end_origem VARCHAR NOT NULL, -- endereço de origem
+	end_destino VARCHAR NOT NULL, -- endereço de destino
+	categoria INT NOT NULL,
 	
-	CONSTRAINT PK_Possui PRIMARY KEY (motorista, carro),
-	CONSTRAINT FK_Motorista FOREIGN KEY (motorista) REFERENCES Motorista (cpf),
-	CONSTRAINT FK_Carro FOREIGN KEY (carro) REFERENCES Carro (renavam)
+	CONSTRAINT PK_Pedido PRIMARY KEY (passageiro, time_aberto),
+	
+	-- relação entre passageiro e categoria
+	CONSTRAINT FK_Passageiro FOREIGN KEY (passageiro) REFERENCES Passageiro (cpf),
+	CONSTRAINT FK_categoria FOREIGN KEY (categoria) REFERENCES Categoria (id)
 );
+	
 
 CREATE TABLE Corrida (
 	passageiro CHAR(11) NOT NULL,
 	motorista CHAR(11) NOT NULL,
 	categoria INT NOT NULL,
-	time_inicio TIMESTAMP NOT NULL,
-	time_fim TIMESTAMP NOT NULL,
-	end_origem VARCHAR NOT NULL,
-	end_destino VARCHAR NOT NULL,
-	avaliacao INT, -- NULL até o passageiro fazer sua avaliação da corrida
+	time_inicio TIMESTAMP NOT NULL, -- hora do início da corrida
+	time_fim TIMESTAMP NOT NULL, -- hora do fim da corrida
+	end_inicio VARCHAR NOT NULL, -- local onde a corrida começou
+	end_fim VARCHAR NOT NULL, -- local onde a corrida terminou (sujeito a mudanças durante a corrida)
+	avaliacao_motorista REAL, -- avaliação de 1 a 5 que o passageiro deu para o motorista
+	avaliacao_passageiro REAL, -- avaliação de 1 a 5 que o motorista deu para o passageiro
 	
 	CONSTRAINT PK_Corrida PRIMARY KEY (passageiro, time_inicio),
+	-- primary key também podia ser (motorista, time_inicio)
+	
+	-- relação ternária entre passageiro, motorista e categoria:
 	CONSTRAINT FK_Passageiro FOREIGN KEY (passageiro) REFERENCES Passageiro (cpf),
 	CONSTRAINT FK_Motorista FOREIGN KEY (motorista) REFERENCES Motorista (cpf),
 	CONSTRAINT FK_Categoria FOREIGN KEY (categoria) REFERENCES Categoria (id)
+);
+
+/* auto-relacionamento que define a hierarquia das categorias */
+CREATE TABLE Cobre (
+	cat_superior INT NOT NULL,
+	cat_inferior INT NOT NULL,
+	
+	CONSTRAINT PK_Cobre PRIMARY KEY (cat_superior, cat_inferior),
+	CONSTRAINT FK_Cobre_1 FOREIGN KEY (cat_superior) REFERENCES Categoria (id),
+	CONSTRAINT FK_Cobre_2 FOREIGN KEY (cat_inferior) REFERENCES Categoria (id)
 );
 
 
