@@ -23,8 +23,10 @@ CREATE TABLE Passageiro (
 CREATE TABLE Categoria (
 	id INT NOT NULL,
 	nome VARCHAR NOT NULL,
+	cobre INT,
 	
-	CONSTRAINT PK_Categoria PRIMARY KEY (id)
+	CONSTRAINT PK_Categoria PRIMARY KEY (id),
+	CONSTRAINT FK_Categoria FOREIGN KEY (cobre) REFERENCES Categoria (id) -- auto relacionamento de hierarquia
 );
 
 /* carros cadastrados e sendo utilizados para prestar o serviço */
@@ -33,7 +35,7 @@ CREATE TABLE Carro (
 	placa CHAR(7) NOT NULL, -- checar
 	marca VARCHAR NOT NULL,
 	modelo VARCHAR NOT NULL,
-	ano INT NOT NULL, -- <= 2018
+	ano INT NOT NULL,
 	categoria INT NOT NULL,
 	
 	CONSTRAINT PK_Carro PRIMARY KEY (renavam),
@@ -75,7 +77,7 @@ CREATE TABLE Corrida (
 	motorista CHAR(11) NOT NULL,
 	categoria INT NOT NULL,
 	time_inicio TIMESTAMP NOT NULL, -- hora do início da corrida
-	time_fim TIMESTAMP NOT NULL, -- hora do fim da corrida
+	time_fim TIMESTAMP, -- hora do fim da corrida (NULL se estiver em andamento)
 	end_inicio VARCHAR NOT NULL, -- local onde a corrida começou
 	end_fim VARCHAR NOT NULL, -- local onde a corrida terminou (sujeito a mudanças durante a corrida)
 	avaliacao_motorista REAL, -- avaliação de 1 a 5 que o passageiro deu para o motorista
@@ -90,18 +92,8 @@ CREATE TABLE Corrida (
 	CONSTRAINT FK_Categoria FOREIGN KEY (categoria) REFERENCES Categoria (id)
 );
 
-/* auto-relacionamento que define a hierarquia das categorias */
-CREATE TABLE Cobre (
-	cat_superior INT NOT NULL,
-	cat_inferior INT NOT NULL,
-	
-	CONSTRAINT PK_Cobre PRIMARY KEY (cat_superior, cat_inferior),
-	CONSTRAINT FK_Cobre_1 FOREIGN KEY (cat_superior) REFERENCES Categoria (id),
-	CONSTRAINT FK_Cobre_2 FOREIGN KEY (cat_inferior) REFERENCES Categoria (id)
-);
 
-
-/* triggers */
+/* TRIGGERS DE VALIDAÇÃO DE DADOS */
 
 CREATE OR REPLACE FUNCTION verif_passageiro() RETURNS trigger AS $$
 BEGIN
@@ -125,14 +117,14 @@ FOR EACH ROW EXECUTE PROCEDURE verif_passageiro();
 CREATE OR REPLACE FUNCTION verif_motorista() RETURNS trigger AS $$
 BEGIN
 	IF NEW.cpf NOT SIMILAR TO '[0-9]*' THEN
-        RAISE EXCEPTION 'O número de CPF inserido parece inválido.';
-    END IF;
+        	RAISE EXCEPTION 'O número de CPF inserido parece inválido.';
+    	END IF;
     
 	IF position('@' in NEW.email) = 0 OR position('.' in NEW.email) = 0 THEN
 		RAISE EXCEPTION 'O email inserido parece inválido.';
 	END IF;
 
-RETURN NEW;
+	RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -140,7 +132,48 @@ CREATE TRIGGER verif_motorista
 BEFORE INSERT ON Motorista
 FOR EACH ROW EXECUTE PROCEDURE verif_motorista();
 
-/*****/
+
+/*
+CORRIDAS SOBREPOSTAS
+Impedir que corridas com o mesmo passageiro ou o mesmo motorista sejam inseridas em horários sobrepostos
+*/
+
+CREATE OR REPLACE FUNCTION corridas_sobrepostas() RETURNS trigger AS $$
+DECLARE
+	count_motorista INTEGER;
+	count_passageiro INTEGER;
+
+BEGIN
+	SELECT COUNT(*) INTO count_motorista
+	FROM Corrida  
+	WHERE motorista == NEW.motorista AND time_fim IS NULL
+	OR NEW.time_inicio < time_fim;
+	
+	SELECT COUNT(*) INTO count_passageiro
+	FROM Corrida
+	WHERE passageiro == NEW.passageiro AND time_fim IS NULL
+	OR NEW.time_inicio < time_fim;
+	
+	IF count_motorista <> 0 THEN
+		RAISE EXCEPTION('Um motorista não pode fazer corridas sobrepostas.');
+	ENDIF;
+	
+	IF count_passageiro <> 0 THEN
+		RAISE EXCEPTION('Um passageiro não pode fazer corridas sobrepostas.');
+	ENDIF;
+	
+	RETURN NEW;
+	
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER corridas_sobrepostas
+BEFORE INSERT ON Corrida
+FOR EACH ROW EXECUTE PROCEDURE corridas_sobrepostas();
+
+
+/* TESTES */
+-- atualizar!
 
 INSERT INTO Passageiro VALUES('12345678910', 'Joao', 'joao@email.com', 26696969);
 INSERT INTO Passageiro VALUES('98765432100', 'Maria', 'maria@email.com', 26696969);
@@ -165,4 +198,3 @@ SELECT * FROM Categoria;
 SELECT * FROM Carro;
 SELECT * FROM Motorista;
 SELECT * FROM Corrida;
-SELECT * FROM Possui;
