@@ -12,7 +12,8 @@ CREATE TABLE Passageiro (
 	nome VARCHAR NOT NULL,
 	email VARCHAR NOT NULL,
 	telefone INT NOT NULL,
-	avaliacao INT DEFAULT 0, -- nota média do usuário
+	avaliacao REAL DEFAULT 0, -- avaliação média do passageiro, de 0 a 5
+    total_corridas INT DEFAULT 0, -- total de corridas que o usuário já concluiu
 	endereco_casa VARCHAR,
 	endereco_trabalho VARCHAR,
 	
@@ -49,7 +50,8 @@ CREATE TABLE Motorista (
 	email VARCHAR NOT NULL,
 	telefone INT NOT NULL,
 	carro INT NOT NULL, -- cada motorista só pode ter um carro cadastrado no Uber
-	avaliacao REAL DEFAULT 0, -- avaliação média do motorista, de 1 a 5
+	avaliacao REAL DEFAULT 0, -- avaliação média do motorista, de 0 a 5
+    total_corridas INT DEFAULT 0, -- total de corridas que o motorista já concluiu
 	
 	CONSTRAINT PK_Motorista PRIMARY KEY (cpf),
 	CONSTRAINT FK_Carro FOREIGN KEY (carro) REFERENCES Carro (renavam) -- relação: motorista possui carro
@@ -134,6 +136,33 @@ FOR EACH ROW EXECUTE PROCEDURE verif_motorista();
 
 
 /*
+VERIFICAR NOTAS DADAS PARA O MOTORISTA E O PASSAGEIRO
+*/
+CREATE OR REPLACE FUNCTION verif_avaliacoes() RETURNS trigger AS $$
+BEGIN
+    IF (NEW.avaliacao_motorista IS NOT NULL) THEN
+        IF ((NEW.avaliacao_motorista < 0) OR (NEW.avaliacao_motorista > 5)) THEN
+            RAISE EXCEPTION 'Avaliação deve estar entre 0 e 5.';
+        END IF;
+    END IF;
+    
+    IF (NEW.avaliacao_passageiro IS NOT NULL) THEN
+        IF ((NEW.avaliacao_passageiro < 0) OR (NEW.avaliacao_passageiro > 5)) THEN
+            RAISE EXCEPTION 'Avaliação deve estar entre 0 e 5.';
+        END IF;
+    END IF;
+	
+	RETURN NEW;
+	
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER verif_avaliacoes
+BEFORE INSERT ON Corrida
+FOR EACH ROW EXECUTE PROCEDURE verif_avaliacoes();
+
+
+/*
 CORRIDAS SOBREPOSTAS
 Impedir que corridas com o mesmo passageiro ou o mesmo motorista sejam inseridas em horários sobrepostos
 */
@@ -177,6 +206,44 @@ BEFORE INSERT ON Corrida
 FOR EACH ROW EXECUTE PROCEDURE corridas_sobrepostas();
 
 
+/*
+ATUALIZAR NOTAS MÉDIAS DO MOTORISTA E DO PASSAGEIRO APÓS A CONCLUSÃO DE UMA CORRIDA
+*/
+
+CREATE OR REPLACE FUNCTION atualizar_medias() RETURNS trigger AS $$
+DECLARE
+    media_antiga_motorista REAL;
+    total_corridas_motorista INTEGER;
+	nova_media_motorista REAL;
+    
+    media_antiga_passageiro REAL;
+    total_corridas_passageiro INTEGER;
+    nova_media_passageiro REAL;
+    
+BEGIN
+    IF (NEW.avaliacao_motorista IS NOT NULL) THEN
+        nova_media_motorista := ((total_corridas_motorista * media_antiga_motorista) + NEW.avaliacao_motorista) / (total_corridas_motorista + 1);
+        -- algo errado aqui! não tá atualizando a tabela
+        
+        EXECUTE 'UPDATE Motorista
+        SET avaliacao = $1, total_corridas = total_corridas + 1
+        WHERE CPF = $2;' USING nova_media_motorista, NEW.motorista;
+        
+    END IF;
+    
+    --IF (NEW.avaliacao_passageiro IS NOT NULL) THEN
+    --END IF;
+	
+	RETURN NEW;
+	
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER atualizar_medias
+AFTER INSERT ON Corrida
+FOR EACH ROW EXECUTE PROCEDURE atualizar_medias();
+
+
 /* TESTES */
 -- atualizar!
 
@@ -197,12 +264,12 @@ INSERT INTO Motorista VALUES('12133454324', 'Marcos', 'marcos@uol.com', 84782478
 INSERT INTO Motorista VALUES('64578854645', 'Roger', 'roger@aol.com', 17654378, 9101);
 
 INSERT INTO Corrida VALUES('12345678910', '10293847560', 1, '2018-06-14 16:00:00', '2018-06-14 17:00:00', 'Niterói', 'Rio', 5, 5);
-INSERT INTO Corrida VALUES('98765432100', '10293847560', 1, '2018-06-14 16:30:00', '2018-06-14 16:50:00', 'Niterói', 'Rio', 5, 5); -- sobreposta!
-
-
+-- INSERT INTO Corrida VALUES('98765432100', '10293847560', 1, '2018-06-14 16:30:00', '2018-06-14 16:50:00', 'Niterói', 'Rio', 5, 5); -- sobreposta!
+INSERT INTO Corrida VALUES('69696969696', '10293847560', 1, '2018-06-14 18:00:00', '2018-06-14 19:00:00', 'Niterói', 'Rio', 4, 5);
+INSERT INTO Corrida VALUES('12345678910', '10293847560', 1, '2018-06-14 20:00:00', '2018-06-14 21:00:00', 'Niterói', 'Rio', 4, 5);
 
 SELECT * FROM Passageiro;
 SELECT * FROM Categoria;
 SELECT * FROM Carro;
 SELECT * FROM Motorista;
-SELECT * FROM Corrida;	
+SELECT * FROM Corrida;
