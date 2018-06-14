@@ -144,23 +144,28 @@ DECLARE
 	count_passageiro INTEGER;
 
 BEGIN
-	SELECT COUNT(*) INTO count_motorista
-	FROM Corrida  
-	WHERE motorista == NEW.motorista AND time_fim IS NULL
-	OR NEW.time_inicio < time_fim;
-	
-	SELECT COUNT(*) INTO count_passageiro
+	SELECT COUNT(*)
+    INTO count_motorista
 	FROM Corrida
-	WHERE passageiro == NEW.passageiro AND time_fim IS NULL
-	OR NEW.time_inicio < time_fim;
+	WHERE motorista = NEW.motorista
+    AND (time_fim IS NULL
+     OR NEW.time_inicio BETWEEN time_inicio AND time_fim);
 	
-	IF count_motorista <> 0 THEN
-		RAISE EXCEPTION('Um motorista não pode fazer corridas sobrepostas.');
-	ENDIF;
+    SELECT COUNT(*)
+    INTO count_passageiro
+	FROM Corrida
+	WHERE passageiro = NEW.passageiro
+    AND (time_fim IS NULL
+	OR NEW.time_inicio BETWEEN time_inicio AND time_fim);
 	
-	IF count_passageiro <> 0 THEN
-		RAISE EXCEPTION('Um passageiro não pode fazer corridas sobrepostas.');
-	ENDIF;
+    
+	IF (count_motorista <> 0) THEN
+		RAISE EXCEPTION 'Um motorista não pode fazer corridas sobrepostas.';
+	END IF;
+	
+	IF (count_passageiro <> 0) THEN
+		RAISE EXCEPTION 'Um passageiro não pode fazer corridas sobrepostas.';
+	END IF;
 	
 	RETURN NEW;
 	
@@ -179,22 +184,25 @@ INSERT INTO Passageiro VALUES('12345678910', 'Joao', 'joao@email.com', 26696969)
 INSERT INTO Passageiro VALUES('98765432100', 'Maria', 'maria@email.com', 26696969);
 INSERT INTO Passageiro VALUES('69696969696', 'Rogerinho', 'djrpdfdtpe1395271@hotmail123.com', 964865952);
 
-INSERT INTO Categoria VALUES(1, 'UberX');
-INSERT INTO Categoria VALUES(2, 'UberBlack');
-INSERT INTO Categoria VALUES(3, 'Select');
+INSERT INTO Categoria VALUES(1, 'UberX', NULL);
+INSERT INTO Categoria VALUES(2, 'UberSelect', 1);
+INSERT INTO Categoria VALUES(3, 'UberBlack', 2);
 
-INSERT INTO Carro VALUES(1234, 'CAM2010', 'Chevrolet', 'Camaro', 2010, 1);
-INSERT INTO Carro VALUES(5678, 'PSC2018', 'Porsche', '718', 2018, 2);
+INSERT INTO Carro VALUES(1234, 'CAM2010', 'Chevrolet', 'Camaro', 2010, 2);
+INSERT INTO Carro VALUES(5678, 'PSC2018', 'Porsche', '718', 2018, 3);
+INSERT INTO Carro VALUES(9101, 'LOL1996', 'Fusca', '96', 2018, 1);
 
 INSERT INTO Motorista VALUES('10293847560', 'Jorge', 'jorge@bol.com', 12443857, 1234);
 INSERT INTO Motorista VALUES('12133454324', 'Marcos', 'marcos@uol.com', 84782478, 5678);
-INSERT INTO Motorista VALUES('64578854645', 'Roger', 'roger@aol.com', 17654378, 5678);
+INSERT INTO Motorista VALUES('64578854645', 'Roger', 'roger@aol.com', 17654378, 9101);
 
-INSERT INTO Corrida VALUES('12345678910', '10293847560', 1, now(), now(), 'Aqui', 'Ali');
-INSERT INTO Corrida VALUES('98765432100', '12133454324', 2, now(), now(), 'Ali', 'Aqui');
+INSERT INTO Corrida VALUES('12345678910', '10293847560', 1, '2018-06-14 16:00:00', '2018-06-14 17:00:00', 'Niterói', 'Rio', 5, 5);
+INSERT INTO Corrida VALUES('98765432100', '10293847560', 1, '2018-06-14 16:30:00', '2018-06-14 16:50:00', 'Niterói', 'Rio', 5, 5); -- sobreposta!
+
+
 
 SELECT * FROM Passageiro;
 SELECT * FROM Categoria;
 SELECT * FROM Carro;
 SELECT * FROM Motorista;
-SELECT * FROM Corrida;
+SELECT * FROM Corrida;	
