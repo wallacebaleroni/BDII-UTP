@@ -212,38 +212,39 @@ ATUALIZAR NOTAS MÉDIAS DO MOTORISTA E DO PASSAGEIRO APÓS A CONCLUSÃO DE UMA C
 
 CREATE OR REPLACE FUNCTION atualizar_medias() RETURNS trigger AS $$
 DECLARE
-    media_antiga_motorista REAL;
     total_corridas_motorista INTEGER;
+    media_antiga_motorista REAL;
 	nova_media_motorista REAL;
     
-    media_antiga_passageiro REAL;
     total_corridas_passageiro INTEGER;
+    media_antiga_passageiro REAL;
     nova_media_passageiro REAL;
     
 BEGIN
-    SELECT total_corridas
-    INTO total_corridas_motorista
-    FROM Motorista
-    WHERE cpf = NEW.motorista;
-
-    SELECT avaliacao
-    INTO media_antiga_motorista
-    FROM Motorista
-    WHERE cpf = NEW.motorista;
-
-
     IF (NEW.avaliacao_motorista IS NOT NULL) THEN
+        SELECT total_corridas INTO total_corridas_motorista FROM Motorista WHERE cpf = NEW.motorista;
+        SELECT avaliacao INTO media_antiga_motorista FROM Motorista WHERE cpf = NEW.motorista;
+
         nova_media_motorista := ((total_corridas_motorista * media_antiga_motorista) + NEW.avaliacao_motorista) / (total_corridas_motorista + 1);
-        -- algo errado aqui! não tá atualizando a tabela
         
         UPDATE Motorista
         SET avaliacao = nova_media_motorista, total_corridas = total_corridas + 1
         WHERE CPF = NEW.motorista;
 
     END IF;
+
     
-    --IF (NEW.avaliacao_passageiro IS NOT NULL) THEN
-    --END IF;
+    IF (NEW.avaliacao_passageiro IS NOT NULL) THEN
+        SELECT total_corridas INTO total_corridas_passageiro FROM Passageiro WHERE cpf = NEW.passageiro;
+        SELECT avaliacao INTO media_antiga_passageiro FROM Passageiro WHERE cpf = NEW.passageiro;
+
+        nova_media_passageiro := ((total_corridas_passageiro * media_antiga_passageiro) + NEW.avaliacao_passageiro) / (total_corridas_passageiro + 1);
+
+        UPDATE Passageiro
+        SET avaliacao = nova_media_passageiro, total_corridas = total_corridas + 1
+        WHERE CPF = NEW.passageiro;
+
+    END IF;
 	
 	RETURN NEW;
 	
@@ -251,7 +252,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER atualizar_medias
-AFTER INSERT ON Corrida
+AFTER INSERT OR UPDATE ON Corrida
 FOR EACH ROW EXECUTE PROCEDURE atualizar_medias();
 
 
@@ -277,7 +278,7 @@ INSERT INTO Motorista VALUES('64578854645', 'Roger', 'roger@aol.com', 17654378, 
 INSERT INTO Corrida VALUES('12345678910', '10293847560', 1, '2018-06-14 16:00:00', '2018-06-14 17:00:00', 'Niterói', 'Rio', 5, 5);
 -- INSERT INTO Corrida VALUES('98765432100', '10293847560', 1, '2018-06-14 16:30:00', '2018-06-14 16:50:00', 'Niterói', 'Rio', 5, 5); -- sobreposta!
 INSERT INTO Corrida VALUES('69696969696', '10293847560', 1, '2018-06-14 18:00:00', '2018-06-14 19:00:00', 'Niterói', 'Rio', 4, 5);
-INSERT INTO Corrida VALUES('12345678910', '10293847560', 1, '2018-06-14 20:00:00', '2018-06-14 21:00:00', 'Niterói', 'Rio', 4, 5);
+INSERT INTO Corrida VALUES('69696969696', '10293847560', 1, '2018-06-14 20:00:00', '2018-06-14 21:00:00', 'Niterói', 'Rio', 4, 4);
 
 SELECT * FROM Passageiro;
 SELECT * FROM Categoria;
