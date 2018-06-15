@@ -221,14 +221,25 @@ DECLARE
     nova_media_passageiro REAL;
     
 BEGIN
+    SELECT total_corridas
+    INTO total_corridas_motorista
+    FROM Motorista
+    WHERE cpf = NEW.motorista;
+
+    SELECT avaliacao
+    INTO media_antiga_motorista
+    FROM Motorista
+    WHERE cpf = NEW.motorista;
+
+
     IF (NEW.avaliacao_motorista IS NOT NULL) THEN
         nova_media_motorista := ((total_corridas_motorista * media_antiga_motorista) + NEW.avaliacao_motorista) / (total_corridas_motorista + 1);
         -- algo errado aqui! não tá atualizando a tabela
         
-        EXECUTE 'UPDATE Motorista
-        SET avaliacao = $1, total_corridas = total_corridas + 1
-        WHERE CPF = $2;' USING nova_media_motorista, NEW.motorista;
-        
+        UPDATE Motorista
+        SET avaliacao = nova_media_motorista, total_corridas = total_corridas + 1
+        WHERE CPF = NEW.motorista;
+
     END IF;
     
     --IF (NEW.avaliacao_passageiro IS NOT NULL) THEN
