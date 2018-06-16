@@ -43,7 +43,7 @@ CREATE TABLE Carro (
 	CONSTRAINT FK_Categoria FOREIGN KEY (categoria) REFERENCES Categoria (id) -- relação: carro atende categoria
 );
 
--- usuários que atuam como motoristas
+/* usuários que atuam como motoristas */
 CREATE TABLE Motorista (
 	cpf CHAR(11) NOT NULL,
 	nome VARCHAR NOT NULL,
@@ -57,14 +57,17 @@ CREATE TABLE Motorista (
 	CONSTRAINT FK_Carro FOREIGN KEY (carro) REFERENCES Carro (renavam) -- relação: motorista possui carro
 );
 
+/* pedidos de corridas (até o momento em que se tornam corridas) */
 CREATE TABLE Pedido (
 	passageiro CHAR(11) NOT NULL,
-	time_aberto TIMESTAMP NOT NULL, -- hora em que o pedido foi feito
-	time_fechado TIMESTAMP, -- hora em que o pedido foi fechado (atendido ou cancelado)
-	status VARCHAR NOT NULL, -- "em aberto" (buscando motorista), "atendido" (virou uma corrida), "cancelado"
+	categoria INT NOT NULL,
 	end_origem VARCHAR NOT NULL, -- endereço de origem
 	end_destino VARCHAR NOT NULL, -- endereço de destino
-	categoria INT NOT NULL,
+	time_aberto TIMESTAMP NOT NULL, -- hora em que o pedido foi iniciado
+	time_selecionado TIMESTAMP, -- hora em que um motorista foi selecionado para atender ao pedido
+	time_fechado TIMESTAMP, -- hora em que o pedido foi fechado (atendido ou cancelado)
+	status VARCHAR DEFAULT 'aberto', -- "aberto" (buscando motorista) / "esperando motorista" / "atendido" (virou uma corrida) / "cancelado pelo motorista" / "cancelado pelo passageiro"
+    custo DECIMAL(10, 2) DEFAULT 0, -- preço do pedido (apenas se houver multa por cancelamento)
 	
 	CONSTRAINT PK_Pedido PRIMARY KEY (passageiro, time_aberto),
 	
@@ -72,8 +75,8 @@ CREATE TABLE Pedido (
 	CONSTRAINT FK_Passageiro FOREIGN KEY (passageiro) REFERENCES Passageiro (cpf),
 	CONSTRAINT FK_categoria FOREIGN KEY (categoria) REFERENCES Categoria (id)
 );
-	
 
+/* corridas */
 CREATE TABLE Corrida (
 	passageiro CHAR(11) NOT NULL,
 	motorista CHAR(11) NOT NULL,
@@ -84,6 +87,7 @@ CREATE TABLE Corrida (
 	end_fim VARCHAR NOT NULL, -- local onde a corrida terminou (sujeito a mudanças durante a corrida)
 	avaliacao_motorista REAL, -- avaliação de 1 a 5 que o passageiro deu para o motorista
 	avaliacao_passageiro REAL, -- avaliação de 1 a 5 que o motorista deu para o passageiro
+    custo DECIMAL(15, 2), -- preço a ser pago pelo passageiro
 	
 	CONSTRAINT PK_Corrida PRIMARY KEY (passageiro, time_inicio),
 	-- primary key também podia ser (motorista, time_inicio)
@@ -95,8 +99,11 @@ CREATE TABLE Corrida (
 );
 
 
-/* TRIGGERS DE VALIDAÇÃO DE DADOS */
+/*
+TRIGGERS DE VALIDAÇÃO DE DADOS
+*/
 
+/* Verificar informações do passageiro */
 CREATE OR REPLACE FUNCTION verif_passageiro() RETURNS trigger AS $$
 BEGIN
     IF NEW.cpf NOT SIMILAR TO '[0-9]*' THEN
@@ -116,6 +123,7 @@ BEFORE INSERT ON Passageiro
 FOR EACH ROW EXECUTE PROCEDURE verif_passageiro();
 
 
+/* Verificar informações do motorista */
 CREATE OR REPLACE FUNCTION verif_motorista() RETURNS trigger AS $$
 BEGIN
 	IF NEW.cpf NOT SIMILAR TO '[0-9]*' THEN
@@ -135,9 +143,8 @@ BEFORE INSERT ON Motorista
 FOR EACH ROW EXECUTE PROCEDURE verif_motorista();
 
 
-/*
-VERIFICAR NOTAS DADAS PARA O MOTORISTA E O PASSAGEIRO
-*/
+
+/* Verificar notas dadas para o motorista e o passageiro em uma corrida */
 CREATE OR REPLACE FUNCTION verif_avaliacoes() RETURNS trigger AS $$
 BEGIN
     IF (NEW.avaliacao_motorista IS NOT NULL) THEN
@@ -160,6 +167,55 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER verif_avaliacoes
 BEFORE INSERT ON Corrida
 FOR EACH ROW EXECUTE PROCEDURE verif_avaliacoes();
+
+
+/* Atualizar informações de um pedido conforme mudanças de status */
+
+CREATE OR REPLACE FUNCTION atualizar_pedido() RETURNS trigger AS $$
+BEGIN
+
+	-- atualizar timestamp quando um motorista é selecionado
+	IF OLD.status = 'aberto' AND NEW.status = 'esperando motorista' THEN
+		IF (NEW.time_selecionado IS NULL) THEN
+			NEW.time_selecionado := now();
+		END IF;
+	END IF;
+
+	-- atualizar timestamp quando o passageiro cancela o pedido e não havia motorista selecionado
+	IF (OLD.status = 'aberto' AND NEW.status = 'cancelado pelo passageiro') THEN
+		NEW.time_fechado := now();
+    END IF;
+
+	-- atualizar timestamp e possível taxa de cancelamento quando o passageiro cancela o pedido
+	-- que já tinha motorista selecionado
+	IF (OLD.status = 'esperando motorista' AND NEW.status = 'cancelado pelo passageiro') THEN
+		NEW.time_fechado := now();
+
+		IF (NEW.time_fechado - NEW.time_selecionado > INTERVAL '5 min') THEN
+			NEW.custo := NEW.custo + 7;
+		END IF;
+	END IF;
+
+	-- atualizar timestamp e status quando o motorista cancela o pedido
+	IF (OLD.status = 'esperando motorista' AND NEW.status = 'cancelado pelo motorista') THEN
+		NEW.time_selecionado := NULL;
+		NEW.status := 'aberto';
+	END IF;
+
+	-- atualizar timestamp quando o motorista chega e a corrida se inicia
+	IF (OLD.status = 'esperando motorista' AND NEW.status = 'atendido') THEN
+		NEW.time_fechado := now();
+	END IF;
+
+
+	RETURN NEW;
+
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER atualizar_pedido
+BEFORE UPDATE ON Pedido
+FOR EACH ROW EXECUTE PROCEDURE atualizar_pedido();
 
 
 /*
@@ -207,7 +263,8 @@ FOR EACH ROW EXECUTE PROCEDURE corridas_sobrepostas();
 
 
 /*
-ATUALIZAR NOTAS MÉDIAS DO MOTORISTA E DO PASSAGEIRO APÓS A CONCLUSÃO DE UMA CORRIDA
+NOTAS MÉDIAS
+Atualizar notas médias do motorista e do passageiro após a conclusão de uma corrida
 */
 
 CREATE OR REPLACE FUNCTION atualizar_medias() RETURNS trigger AS $$
@@ -230,7 +287,6 @@ BEGIN
         UPDATE Motorista
         SET avaliacao = nova_media_motorista, total_corridas = total_corridas + 1
         WHERE CPF = NEW.motorista;
-
     END IF;
 
     
@@ -243,7 +299,6 @@ BEGIN
         UPDATE Passageiro
         SET avaliacao = nova_media_passageiro, total_corridas = total_corridas + 1
         WHERE CPF = NEW.passageiro;
-
     END IF;
 	
 	RETURN NEW;
@@ -257,7 +312,6 @@ FOR EACH ROW EXECUTE PROCEDURE atualizar_medias();
 
 
 /* TESTES */
--- atualizar!
 
 INSERT INTO Passageiro VALUES('12345678910', 'Joao', 'joao@email.com', 26696969);
 INSERT INTO Passageiro VALUES('98765432100', 'Maria', 'maria@email.com', 26696969);
@@ -280,8 +334,15 @@ INSERT INTO Corrida VALUES('12345678910', '10293847560', 1, '2018-06-14 16:00:00
 INSERT INTO Corrida VALUES('69696969696', '10293847560', 1, '2018-06-14 18:00:00', '2018-06-14 19:00:00', 'Niterói', 'Rio', 4, 5);
 INSERT INTO Corrida VALUES('69696969696', '10293847560', 1, '2018-06-14 20:00:00', '2018-06-14 21:00:00', 'Niterói', 'Rio', 4, 4);
 
+INSERT INTO Pedido VALUES('12345678910', 1, 'Niterói', 'Rio', '2018-06-16 20:00:00', NULL, NULL);
+UPDATE Pedido SET status = 'esperando motorista', time_selecionado = '2018-06-16 20:05:00' WHERE passageiro = '12345678910';
+UPDATE Pedido SET status = 'cancelado pelo passageiro' WHERE passageiro = '12345678910';
+-- UPDATE Pedido SET status = 'cancelado pelo motorista' WHERE passageiro = '12345678910';
+-- UPDATE Pedido SET status = 'atendido' WHERE passageiro = '12345678910';
+
 SELECT * FROM Passageiro;
 SELECT * FROM Categoria;
 SELECT * FROM Carro;
 SELECT * FROM Motorista;
 SELECT * FROM Corrida;
+SELECT * FROM Pedido;
