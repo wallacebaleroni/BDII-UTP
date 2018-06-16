@@ -311,6 +311,37 @@ AFTER INSERT OR UPDATE ON Corrida
 FOR EACH ROW EXECUTE PROCEDURE atualizar_medias();
 
 
+CREATE OR REPLACE FUNCTION check_categoria() RETURNS trigger AS $$
+DECLARE
+	categoria_corrida INT;
+	categoria_motorista INT;
+BEGIN
+	categoria_corrida = NEW.categoria;
+	SELECT categoria 
+	INTO categoria_motorista 
+	FROM motorista INNER JOIN carro ON motorista.carro = carro.renavam
+	WHERE motorista.cpf = NEW.motorista;
+	
+	WHILE categoria_corrida <> categoria_motorista LOOP
+		SELECT cobre 
+		INTO categoria_motorista
+		FROM categoria
+		WHERE categoria.id = categoria_motorista;
+		
+		IF categoria_motorista IS NULL THEN
+			RAISE EXCEPTION 'Motorista de categoria inferior a da corrida';
+		END IF;
+	END LOOP;
+	
+	RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER check_categoria
+BEFORE INSERT OR UPDATE ON Corrida
+FOR EACH ROW EXECUTE PROCEDURE check_categoria();
+
+
 /* TESTES */
 
 INSERT INTO Passageiro VALUES('12345678910', 'Joao', 'joao@email.com', 26696969);
@@ -318,8 +349,9 @@ INSERT INTO Passageiro VALUES('98765432100', 'Maria', 'maria@email.com', 2669696
 INSERT INTO Passageiro VALUES('69696969696', 'Rogerinho', 'djrpdfdtpe1395271@hotmail123.com', 964865952);
 
 INSERT INTO Categoria VALUES(1, 'UberX', NULL);
-INSERT INTO Categoria VALUES(2, 'UberSelect', 1);
-INSERT INTO Categoria VALUES(3, 'UberBlack', 2);
+INSERT INTO Categoria VALUES(2, 'UberBlack', 1);
+INSERT INTO Categoria VALUES(3, 'UberVIP', 2);
+INSERT INTO Categoria VALUES(4, 'UberSelect', NULL);
 
 INSERT INTO Carro VALUES(1234, 'CAM2010', 'Chevrolet', 'Camaro', 2010, 2);
 INSERT INTO Carro VALUES(5678, 'PSC2018', 'Porsche', '718', 2018, 3);
@@ -329,12 +361,12 @@ INSERT INTO Motorista VALUES('10293847560', 'Jorge', 'jorge@bol.com', 12443857, 
 INSERT INTO Motorista VALUES('12133454324', 'Marcos', 'marcos@uol.com', 84782478, 5678);
 INSERT INTO Motorista VALUES('64578854645', 'Roger', 'roger@aol.com', 17654378, 9101);
 
-INSERT INTO Corrida VALUES('12345678910', '10293847560', 1, '2018-06-14 16:00:00', '2018-06-14 17:00:00', 'Niterói', 'Rio', 5, 5);
--- INSERT INTO Corrida VALUES('98765432100', '10293847560', 1, '2018-06-14 16:30:00', '2018-06-14 16:50:00', 'Niterói', 'Rio', 5, 5); -- sobreposta!
-INSERT INTO Corrida VALUES('69696969696', '10293847560', 1, '2018-06-14 18:00:00', '2018-06-14 19:00:00', 'Niterói', 'Rio', 4, 5);
-INSERT INTO Corrida VALUES('69696969696', '10293847560', 1, '2018-06-14 20:00:00', '2018-06-14 21:00:00', 'Niterói', 'Rio', 4, 4);
+INSERT INTO Corrida VALUES('12345678910', '10293847560', 2, '2018-06-14 16:00:00', '2018-06-14 17:00:00', 'Niterói', 'Rio', 5, 5);
+-- INSERT INTO Corrida VALUES('98765432100', '10293847560', 2, '2018-06-14 16:30:00', '2018-06-14 16:50:00', 'Niterói', 'Rio', 5, 5); -- sobreposta!
+INSERT INTO Corrida VALUES('69696969696', '10293847560', 2, '2018-06-14 18:00:00', '2018-06-14 19:00:00', 'Niterói', 'Rio', 4, 5);
+-- INSERT INTO Corrida VALUES('69696969696', '10293847560', 3, '2018-06-14 20:00:00', '2018-06-14 21:00:00', 'Niterói', 'Rio', 4, 4); -- categoria errada!
 
-INSERT INTO Pedido VALUES('12345678910', 1, 'Niterói', 'Rio', '2018-06-16 20:00:00', NULL, NULL);
+INSERT INTO Pedido VALUES('12345678910', 3, 'Niterói', 'Rio', '2018-06-16 20:00:00', NULL, NULL);
 UPDATE Pedido SET status = 'esperando motorista', time_selecionado = '2018-06-16 20:05:00' WHERE passageiro = '12345678910';
 UPDATE Pedido SET status = 'cancelado pelo passageiro' WHERE passageiro = '12345678910';
 -- UPDATE Pedido SET status = 'cancelado pelo motorista' WHERE passageiro = '12345678910';
@@ -346,3 +378,4 @@ SELECT * FROM Carro;
 SELECT * FROM Motorista;
 SELECT * FROM Corrida;
 SELECT * FROM Pedido;
+
