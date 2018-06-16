@@ -59,6 +59,7 @@ CREATE TABLE Motorista (
 
 /* pedidos de corridas (até o momento em que se tornam corridas) */
 CREATE TABLE Pedido (
+	id INT NOT NULL,
 	passageiro CHAR(11) NOT NULL,
 	categoria INT NOT NULL,
 	end_origem VARCHAR NOT NULL, -- endereço de origem
@@ -341,6 +342,49 @@ CREATE TRIGGER check_categoria
 BEFORE INSERT OR UPDATE ON Corrida
 FOR EACH ROW EXECUTE PROCEDURE check_categoria();
 
+DROP FUNCTION IF EXISTS get_areas_problematicas();
+CREATE OR REPLACE FUNCTION get_areas_problematicas() 
+RETURNS TABLE(
+	area VARCHAR,
+	quantidade_cancelamentos INT
+) AS $$
+DECLARE
+	areas_canceladas CURSOR FOR 
+		SELECT end_destino 
+		FROM Pedido 
+		WHERE status = 'cancelado pelo motorista' OR status = 'cancelado pelo passageiro' 
+		GROUP BY end_destino;
+	conta INT;
+BEGIN
+	FOR area IN areas_canceladas LOOP
+		SELECT COUNT(id) 
+		INTO conta 
+		FROM Pedido 
+		WHERE end_destino = area.end_destino;
+		
+		RETURN QUERY SELECT area.end_destino, conta;		
+	END LOOP;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP FUNCTION IF EXISTS areas_problematicas();
+CREATE OR REPLACE FUNCTION areas_problematicas() RETURNS void AS $$
+DECLARE
+	areas CURSOR FOR SELECT * FROM get_areas_problematicas() ORDER BY quantidade_cancelamentos DESC;
+	i INT;
+BEGIN
+	i = 1;
+	RAISE NOTICE 'Áreas com maior quantidade de cancelamentos:';
+	FOR area IN areas LOOP
+		IF area.quantidade_cancelamentos = 1 THEN
+			RAISE NOTICE '%ª. % com % cancelamento', i, area.area, area.quantidade_cancelamentos;
+		ELSE 
+			RAISE NOTICE '%ª. % com % cancelamentos', i, area.area, area.quantidade_cancelamentos;
+		END IF;
+		i = i + 1;
+	END LOOP;
+END;
+$$ language plpgsql;
 
 /* TESTES */
 
@@ -366,9 +410,18 @@ INSERT INTO Corrida VALUES('12345678910', '10293847560', 2, '2018-06-14 16:00:00
 INSERT INTO Corrida VALUES('69696969696', '10293847560', 2, '2018-06-14 18:00:00', '2018-06-14 19:00:00', 'Niterói', 'Rio', 4, 5);
 -- INSERT INTO Corrida VALUES('69696969696', '10293847560', 3, '2018-06-14 20:00:00', '2018-06-14 21:00:00', 'Niterói', 'Rio', 4, 4); -- categoria errada!
 
-INSERT INTO Pedido VALUES('12345678910', 3, 'Niterói', 'Rio', '2018-06-16 20:00:00', NULL, NULL);
-UPDATE Pedido SET status = 'esperando motorista', time_selecionado = '2018-06-16 20:05:00' WHERE passageiro = '12345678910';
-UPDATE Pedido SET status = 'cancelado pelo passageiro' WHERE passageiro = '12345678910';
+INSERT INTO Pedido VALUES(1, '12345678910', 3, 'Icarai', 'Ipanema', '2018-06-16 20:00:00', NULL, NULL);
+INSERT INTO Pedido VALUES(2, '12345678910', 3, 'Botafogo', 'Flamengo', '2018-06-16 20:00:01', NULL, NULL);
+INSERT INTO Pedido VALUES(3, '12345678910', 3, 'Botafogo', 'Ipanema', '2018-06-16 20:00:02', NULL, NULL);
+INSERT INTO Pedido VALUES(4, '12345678910', 3, 'Flamengo', 'Icarai', '2018-06-16 20:00:03', NULL, NULL);
+INSERT INTO Pedido VALUES(5, '12345678910', 3, 'Flamengo', 'Botafogo', '2018-06-16 20:00:04', NULL, NULL);
+
+UPDATE Pedido SET status = 'cancelado pelo motorista', time_selecionado = '2018-06-16 20:05:00' WHERE id = 1;
+UPDATE Pedido SET status = 'atendido', time_selecionado = '2018-06-16 20:05:00' WHERE id = 2;
+UPDATE Pedido SET status = 'cancelado pelo passageiro', time_selecionado = '2018-06-16 20:05:00' WHERE id = 3;
+UPDATE Pedido SET status = 'atendido', time_selecionado = '2018-06-16 20:05:00' WHERE id = 4;
+UPDATE Pedido SET status = 'cancelado pelo passageiro', time_selecionado = '2018-06-16 20:05:00' WHERE id = 5;
+-- UPDATE Pedido SET status = 'cancelado pelo passageiro' WHERE passageiro = '12345678910';
 -- UPDATE Pedido SET status = 'cancelado pelo motorista' WHERE passageiro = '12345678910';
 -- UPDATE Pedido SET status = 'atendido' WHERE passageiro = '12345678910';
 
@@ -379,3 +432,4 @@ SELECT * FROM Motorista;
 SELECT * FROM Corrida;
 SELECT * FROM Pedido;
 
+SELECT * FROM areas_problematicas();
