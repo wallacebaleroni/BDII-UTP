@@ -23,7 +23,7 @@ CREATE TABLE Passageiro (
 /* categorias de serviço (UberX, UberBlack...) */
 CREATE TABLE Categoria (
 	id INT NOT NULL,
-	nome VARCHAR NOT NULL,
+	titulo VARCHAR NOT NULL,
 	cobre INT,
 	
 	CONSTRAINT PK_Categoria PRIMARY KEY (id),
@@ -386,6 +386,34 @@ BEGIN
 END;
 $$ language plpgsql;
 
+DROP FUNCTION IF EXISTS estatisticas();
+CREATE OR REPLACE FUNCTION estatisticas() RETURNS void AS $$
+DECLARE
+	qntd INT;
+	media_nota CURSOR FOR 
+		SELECT titulo, AVG(avaliacao) as nota
+		FROM (motorista INNER JOIN carro ON motorista.carro = carro.renavam) INNER JOIN categoria on carro.categoria = categoria.id
+		GROUP BY titulo;
+BEGIN
+	RAISE NOTICE 'Números de corridas por período:';
+
+	SELECT COUNT(*) INTO qntd FROM Corrida WHERE time_inicio > now() - interval '1 day';
+	RAISE NOTICE 'Número de corridas no último dia: %', qntd;
+	
+	SELECT COUNT(*) INTO qntd FROM Corrida WHERE time_inicio > now() - interval '1 month';
+	RAISE NOTICE 'Número de corridas no último mes: %', qntd;
+	
+	SELECT COUNT(*) INTO qntd FROM Corrida WHERE time_inicio > now() - interval '1 year';
+	RAISE NOTICE 'Número de corridas no último ano: %', qntd;
+	
+	RAISE NOTICE 'Média de nota dos motorista por categoria:';
+	FOR categoria IN media_nota LOOP
+		RAISE NOTICE 'Média de nota no %: %', categoria.titulo, categoria.nota;
+	END LOOP;
+	
+END;
+$$ language plpgsql;
+
 /* TESTES */
 
 INSERT INTO Passageiro VALUES('12345678910', 'Joao', 'joao@email.com', 26696969);
@@ -400,10 +428,12 @@ INSERT INTO Categoria VALUES(4, 'UberSelect', NULL);
 INSERT INTO Carro VALUES(1234, 'CAM2010', 'Chevrolet', 'Camaro', 2010, 2);
 INSERT INTO Carro VALUES(5678, 'PSC2018', 'Porsche', '718', 2018, 3);
 INSERT INTO Carro VALUES(9101, 'LOL1996', 'Fusca', '96', 2018, 1);
+INSERT INTO Carro VALUES(9102, 'FER2018', 'Ferrari', '488', 2018, 3);
 
-INSERT INTO Motorista VALUES('10293847560', 'Jorge', 'jorge@bol.com', 12443857, 1234);
-INSERT INTO Motorista VALUES('12133454324', 'Marcos', 'marcos@uol.com', 84782478, 5678);
-INSERT INTO Motorista VALUES('64578854645', 'Roger', 'roger@aol.com', 17654378, 9101);
+INSERT INTO Motorista VALUES('10293847560', 'Jorge', 'jorge@bol.com', 12443857, 1234, 5);
+INSERT INTO Motorista VALUES('12133454324', 'Marcos', 'marcos@uol.com', 84782478, 5678, 3);
+INSERT INTO Motorista VALUES('64578854645', 'Roger', 'roger@aol.com', 17654378, 9101, 3);
+INSERT INTO Motorista VALUES('68578220448', 'Fabio', 'fabio@dol.com', 42345618, 9102, 5);
 
 INSERT INTO Corrida VALUES('12345678910', '10293847560', 2, '2018-06-14 16:00:00', '2018-06-14 17:00:00', 'Niterói', 'Rio', 5, 5);
 -- INSERT INTO Corrida VALUES('98765432100', '10293847560', 2, '2018-06-14 16:30:00', '2018-06-14 16:50:00', 'Niterói', 'Rio', 5, 5); -- sobreposta!
@@ -432,4 +462,6 @@ SELECT * FROM Motorista;
 SELECT * FROM Corrida;
 SELECT * FROM Pedido;
 
-SELECT * FROM areas_problematicas();
+SELECT areas_problematicas();
+
+SELECT estatisticas();
