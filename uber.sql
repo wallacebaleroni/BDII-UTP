@@ -6,94 +6,94 @@ DROP TABLE IF EXISTS Corrida CASCADE;
 DROP TABLE IF EXISTS Pedido CASCADE;
 
 
-/* usuários que atuam como passageiros */
+/* Usuários que atuam como passageiros */
 CREATE TABLE Passageiro (
 	cpf CHAR(11) NOT NULL,
 	nome VARCHAR NOT NULL,
 	email VARCHAR NOT NULL,
 	telefone INT NOT NULL,
-	avaliacao REAL DEFAULT 0, -- avaliação média do passageiro, de 0 a 5
-    total_corridas INT DEFAULT 0, -- total de corridas que o usuário já concluiu
+	avaliacao REAL DEFAULT 0, -- Avaliação média do passageiro, de 0 a 5
+    total_corridas INT DEFAULT 0, -- Total de corridas que o usuário já concluiu
 	endereco_casa VARCHAR,
 	endereco_trabalho VARCHAR,
 	
 	CONSTRAINT PK_Passageiro PRIMARY KEY (cpf)
 );
 
-/* categorias de serviço (UberX, UberBlack...) */
+/* Categorias de serviço (UberX, UberBlack...) */
 CREATE TABLE Categoria (
 	id INT NOT NULL,
 	titulo VARCHAR NOT NULL,
 	cobre INT,
 	
 	CONSTRAINT PK_Categoria PRIMARY KEY (id),
-	CONSTRAINT FK_Categoria FOREIGN KEY (cobre) REFERENCES Categoria (id) -- auto relacionamento de hierarquia
+	CONSTRAINT FK_Categoria FOREIGN KEY (cobre) REFERENCES Categoria (id) -- Auto-relacionamento de hierarquia
 );
 
-/* carros cadastrados e sendo utilizados para prestar o serviço */
+/* Carros cadastrados e sendo utilizados para prestar o serviço */
 CREATE TABLE Carro (
 	renavam INT NOT NULL,
-	placa CHAR(7) NOT NULL, -- checar
+	placa CHAR(7) NOT NULL,
 	marca VARCHAR NOT NULL,
 	modelo VARCHAR NOT NULL,
 	ano INT NOT NULL,
 	categoria INT NOT NULL,
 	
 	CONSTRAINT PK_Carro PRIMARY KEY (renavam),
-	CONSTRAINT FK_Categoria FOREIGN KEY (categoria) REFERENCES Categoria (id) -- relação: carro atende categoria
+	CONSTRAINT FK_Categoria FOREIGN KEY (categoria) REFERENCES Categoria (id) -- Relação: carro atende categoria
 );
 
-/* usuários que atuam como motoristas */
+/* Usuários que atuam como motoristas */
 CREATE TABLE Motorista (
 	cpf CHAR(11) NOT NULL,
 	nome VARCHAR NOT NULL,
 	email VARCHAR NOT NULL,
 	telefone INT NOT NULL,
-	carro INT NOT NULL, -- cada motorista só pode ter um carro cadastrado no Uber
-	avaliacao REAL DEFAULT 0, -- avaliação média do motorista, de 0 a 5
-    total_corridas INT DEFAULT 0, -- total de corridas que o motorista já concluiu
+	carro INT NOT NULL, -- Cada motorista só pode ter um carro cadastrado no Uber
+	avaliacao REAL DEFAULT 0, -- Avaliação média do motorista, de 0 a 5
+    total_corridas INT DEFAULT 0, -- Total de corridas que o motorista já concluiu
 	
 	CONSTRAINT PK_Motorista PRIMARY KEY (cpf),
-	CONSTRAINT FK_Carro FOREIGN KEY (carro) REFERENCES Carro (renavam) -- relação: motorista possui carro
+	CONSTRAINT FK_Carro FOREIGN KEY (carro) REFERENCES Carro (renavam) -- Relação: motorista possui carro
 );
 
-/* pedidos de corridas (até o momento em que se tornam corridas) */
+/* Pedidos de corridas (até o momento em que se tornam corridas) */
 CREATE TABLE Pedido (
 	id INT NOT NULL,
 	passageiro CHAR(11) NOT NULL,
 	categoria INT NOT NULL,
-	end_origem VARCHAR NOT NULL, -- endereço de origem
-	end_destino VARCHAR NOT NULL, -- endereço de destino
-	time_aberto TIMESTAMP NOT NULL, -- hora em que o pedido foi iniciado
-	time_selecionado TIMESTAMP, -- hora em que um motorista foi selecionado para atender ao pedido
-	time_fechado TIMESTAMP, -- hora em que o pedido foi fechado (atendido ou cancelado)
+	end_origem VARCHAR NOT NULL, -- Endereço de origem
+	end_destino VARCHAR NOT NULL, -- Endereço de destino
+	time_aberto TIMESTAMP NOT NULL, -- Hora em que o pedido foi iniciado
+	time_selecionado TIMESTAMP, -- Hora em que um motorista foi selecionado para atender ao pedido
+	time_fechado TIMESTAMP, -- Hora em que o pedido foi fechado (atendido ou cancelado)
 	status VARCHAR DEFAULT 'aberto', -- "aberto" (buscando motorista) / "esperando motorista" / "atendido" (virou uma corrida) / "cancelado pelo motorista" / "cancelado pelo passageiro"
-    custo DECIMAL(10, 2) DEFAULT 0, -- preço do pedido (apenas se houver multa por cancelamento)
+    custo DECIMAL(10, 2) DEFAULT 0, -- Preço do pedido (apenas se houver multa por cancelamento)
 	
 	CONSTRAINT PK_Pedido PRIMARY KEY (passageiro, time_aberto),
 	
-	-- relação entre passageiro e categoria
+	-- Relação com passageiro e categoria
 	CONSTRAINT FK_Passageiro FOREIGN KEY (passageiro) REFERENCES Passageiro (cpf),
 	CONSTRAINT FK_categoria FOREIGN KEY (categoria) REFERENCES Categoria (id)
 );
 
-/* corridas */
+/* Corridas */
 CREATE TABLE Corrida (
 	passageiro CHAR(11) NOT NULL,
 	motorista CHAR(11) NOT NULL,
 	categoria INT NOT NULL,
-	time_inicio TIMESTAMP NOT NULL, -- hora do início da corrida
-	time_fim TIMESTAMP, -- hora do fim da corrida (NULL se estiver em andamento)
-	end_inicio VARCHAR NOT NULL, -- local onde a corrida começou
-	end_fim VARCHAR NOT NULL, -- local onde a corrida terminou (sujeito a mudanças durante a corrida)
-	avaliacao_motorista REAL, -- avaliação de 1 a 5 que o passageiro deu para o motorista
-	avaliacao_passageiro REAL, -- avaliação de 1 a 5 que o motorista deu para o passageiro
-    custo DECIMAL(15, 2), -- preço a ser pago pelo passageiro
+	time_inicio TIMESTAMP NOT NULL, -- Hora do início da corrida
+	time_fim TIMESTAMP, -- Hora do fim da corrida (NULL se estiver em andamento)
+	end_inicio VARCHAR NOT NULL, -- Local onde a corrida começou
+	end_fim VARCHAR NOT NULL, -- Local onde a corrida terminou (sujeito a mudanças durante a corrida)
+	avaliacao_motorista REAL, -- Avaliação de 1 a 5 que o passageiro deu para o motorista
+	avaliacao_passageiro REAL, -- Avaliação de 1 a 5 que o motorista deu para o passageiro
+    custo DECIMAL(15, 2), -- Preço a ser pago pelo passageiro
 	
+	-- Primary key também poderia ser (motorista, time_inicio)
 	CONSTRAINT PK_Corrida PRIMARY KEY (passageiro, time_inicio),
-	-- primary key também podia ser (motorista, time_inicio)
 	
-	-- relação ternária entre passageiro, motorista e categoria:
+	-- Relação ternária entre passageiro, motorista e categoria:
 	CONSTRAINT FK_Passageiro FOREIGN KEY (passageiro) REFERENCES Passageiro (cpf),
 	CONSTRAINT FK_Motorista FOREIGN KEY (motorista) REFERENCES Motorista (cpf),
 	CONSTRAINT FK_Categoria FOREIGN KEY (categoria) REFERENCES Categoria (id)
@@ -145,7 +145,7 @@ FOR EACH ROW EXECUTE PROCEDURE verif_motorista();
 
 
 
-/* Verificar notas dadas para o motorista e o passageiro em uma corrida */
+/* TRIGGER 1: Verificar notas dadas para o motorista e o passageiro em uma corrida */
 CREATE OR REPLACE FUNCTION verif_avaliacoes() RETURNS trigger AS $$
 BEGIN
     IF (NEW.avaliacao_motorista IS NOT NULL) THEN
@@ -170,24 +170,23 @@ BEFORE INSERT ON Corrida
 FOR EACH ROW EXECUTE PROCEDURE verif_avaliacoes();
 
 
-/* Atualizar informações de um pedido conforme mudanças de status */
-
+/* TRIGGER 2: Atualizar informações de um pedido conforme mudanças de status */
 CREATE OR REPLACE FUNCTION atualizar_pedido() RETURNS trigger AS $$
 BEGIN
 
-	-- atualizar timestamp quando um motorista é selecionado
+	-- Atualizar timestamp quando um motorista é selecionado
 	IF OLD.status = 'aberto' AND NEW.status = 'esperando motorista' THEN
 		IF (NEW.time_selecionado IS NULL) THEN
 			NEW.time_selecionado := now();
 		END IF;
 	END IF;
 
-	-- atualizar timestamp quando o passageiro cancela o pedido e não havia motorista selecionado
+	-- Atualizar timestamp quando o passageiro cancela o pedido e não havia motorista selecionado
 	IF (OLD.status = 'aberto' AND NEW.status = 'cancelado pelo passageiro') THEN
 		NEW.time_fechado := now();
     END IF;
 
-	-- atualizar timestamp e possível taxa de cancelamento quando o passageiro cancela o pedido
+	-- Atualizar timestamp e possível taxa de cancelamento quando o passageiro cancela o pedido
 	-- que já tinha motorista selecionado
 	IF (OLD.status = 'esperando motorista' AND NEW.status = 'cancelado pelo passageiro') THEN
 		NEW.time_fechado := now();
@@ -197,13 +196,13 @@ BEGIN
 		END IF;
 	END IF;
 
-	-- atualizar timestamp e status quando o motorista cancela o pedido
+	-- Atualizar timestamp e status quando o motorista cancela o pedido
 	IF (OLD.status = 'esperando motorista' AND NEW.status = 'cancelado pelo motorista') THEN
 		NEW.time_selecionado := NULL;
 		NEW.status := 'aberto';
 	END IF;
 
-	-- atualizar timestamp quando o motorista chega e a corrida se inicia
+	-- Atualizar timestamp quando o motorista chega e a corrida se inicia
 	IF (OLD.status = 'esperando motorista' AND NEW.status = 'atendido') THEN
 		NEW.time_fechado := now();
 	END IF;
@@ -220,10 +219,9 @@ FOR EACH ROW EXECUTE PROCEDURE atualizar_pedido();
 
 
 /*
-CORRIDAS SOBREPOSTAS
+TRIGGER 3: CORRIDAS SOBREPOSTAS
 Impedir que corridas com o mesmo passageiro ou o mesmo motorista sejam inseridas em horários sobrepostos
 */
-
 CREATE OR REPLACE FUNCTION corridas_sobrepostas() RETURNS trigger AS $$
 DECLARE
 	count_motorista INTEGER;
@@ -264,10 +262,9 @@ FOR EACH ROW EXECUTE PROCEDURE corridas_sobrepostas();
 
 
 /*
-NOTAS MÉDIAS
+TRIGGER 4: NOTAS MÉDIAS
 Atualizar notas médias do motorista e do passageiro após a conclusão de uma corrida
 */
-
 CREATE OR REPLACE FUNCTION atualizar_medias() RETURNS trigger AS $$
 DECLARE
     total_corridas_motorista INTEGER;
@@ -312,6 +309,11 @@ AFTER INSERT OR UPDATE ON Corrida
 FOR EACH ROW EXECUTE PROCEDURE atualizar_medias();
 
 
+/*
+TRIGGER 5: HIERARQUIA DAS CATEGORIAS
+Checa se categoria do carro do motorista envolvido na corrida 
+é de hieraquia igual ou superior a da indicada na corrida
+*/
 CREATE OR REPLACE FUNCTION check_categoria() RETURNS trigger AS $$
 DECLARE
 	categoria_corrida INT;
@@ -342,6 +344,10 @@ CREATE TRIGGER check_categoria
 BEFORE INSERT OR UPDATE ON Corrida
 FOR EACH ROW EXECUTE PROCEDURE check_categoria();
 
+
+/*
+Função auxiliar ao PROCEDURE 1
+*/
 DROP FUNCTION IF EXISTS get_areas_problematicas();
 CREATE OR REPLACE FUNCTION get_areas_problematicas() 
 RETURNS TABLE(
@@ -367,6 +373,10 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+/*
+PROCEDURE 1: RANKING DE AREAS COM MAIS CANCELAMENTOS
+Função imprime as áreas com mais cancelamentos
+*/
 DROP FUNCTION IF EXISTS areas_problematicas();
 CREATE OR REPLACE FUNCTION areas_problematicas() RETURNS void AS $$
 DECLARE
@@ -386,6 +396,13 @@ BEGIN
 END;
 $$ language plpgsql;
 
+
+/*
+PROCEDURE 2: ALGUMAS ESTATISTICAS
+Função que imprime algumas estatísticas sobre as corridas, como
+Número de corridas em certos intervalos de tempo e
+Média de nota dos motoristas por categoria
+*/
 DROP FUNCTION IF EXISTS estatisticas();
 CREATE OR REPLACE FUNCTION estatisticas() RETURNS void AS $$
 DECLARE
@@ -414,8 +431,9 @@ BEGIN
 END;
 $$ language plpgsql;
 
-/* TESTES */
 
+
+/* Inserção de linhas nas tabelas */
 INSERT INTO Passageiro VALUES('12345678910', 'Joao', 'joao@email.com', 26696969);
 INSERT INTO Passageiro VALUES('98765432100', 'Maria', 'maria@email.com', 26696969);
 INSERT INTO Passageiro VALUES('69696969696', 'Rogerinho', 'djrpdfdtpe1395271@hotmail123.com', 964865952);
@@ -436,9 +454,9 @@ INSERT INTO Motorista VALUES('64578854645', 'Roger', 'roger@aol.com', 17654378, 
 INSERT INTO Motorista VALUES('68578220448', 'Fabio', 'fabio@dol.com', 42345618, 9102, 5);
 
 INSERT INTO Corrida VALUES('12345678910', '10293847560', 2, '2018-06-14 16:00:00', '2018-06-14 17:00:00', 'Niterói', 'Rio', 5, 5);
--- INSERT INTO Corrida VALUES('98765432100', '10293847560', 2, '2018-06-14 16:30:00', '2018-06-14 16:50:00', 'Niterói', 'Rio', 5, 5); -- sobreposta!
 INSERT INTO Corrida VALUES('69696969696', '10293847560', 2, '2018-06-14 18:00:00', '2018-06-14 19:00:00', 'Niterói', 'Rio', 4, 5);
--- INSERT INTO Corrida VALUES('69696969696', '10293847560', 3, '2018-06-14 20:00:00', '2018-06-14 21:00:00', 'Niterói', 'Rio', 4, 4); -- categoria errada!
+-- INSERT INTO Corrida VALUES('98765432100', '10293847560', 2, '2018-06-14 16:30:00', '2018-06-14 16:50:00', 'Niterói', 'Rio', 5, 5); -- Exceção: Corridas sobrepostas!
+-- INSERT INTO Corrida VALUES('69696969696', '10293847560', 3, '2018-06-14 20:00:00', '2018-06-14 21:00:00', 'Niterói', 'Rio', 4, 4); -- Exceção: Categoria errada!
 
 INSERT INTO Pedido VALUES(1, '12345678910', 3, 'Icarai', 'Ipanema', '2018-06-16 20:00:00', NULL, NULL);
 INSERT INTO Pedido VALUES(2, '12345678910', 3, 'Botafogo', 'Flamengo', '2018-06-16 20:00:01', NULL, NULL);
@@ -463,5 +481,4 @@ SELECT * FROM Corrida;
 SELECT * FROM Pedido;
 
 SELECT areas_problematicas();
-
 SELECT estatisticas();
