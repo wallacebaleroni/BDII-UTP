@@ -51,7 +51,7 @@ CREATE TABLE Motorista (
 	telefone INT NOT NULL,
 	carro INT NOT NULL, -- Cada motorista só pode ter um carro cadastrado no Uber
 	avaliacao REAL DEFAULT 0, -- Avaliação média do motorista, de 0 a 5
-    total_corridas INT DEFAULT 0, -- Total de corridas que o motorista já concluiu
+    	total_corridas INT DEFAULT 0, -- Total de corridas que o motorista já concluiu
 	
 	CONSTRAINT PK_Motorista PRIMARY KEY (cpf),
 	CONSTRAINT FK_Carro FOREIGN KEY (carro) REFERENCES Carro (renavam) -- Relação: motorista possui carro
@@ -68,9 +68,9 @@ CREATE TABLE Pedido (
 	time_selecionado TIMESTAMP, -- Hora em que um motorista foi selecionado para atender ao pedido
 	time_fechado TIMESTAMP, -- Hora em que o pedido foi fechado (atendido ou cancelado)
 	status VARCHAR DEFAULT 'aberto', -- "aberto" (buscando motorista) / "esperando motorista" / "atendido" (virou uma corrida) / "cancelado pelo motorista" / "cancelado pelo passageiro"
-    custo DECIMAL(10, 2) DEFAULT 0, -- Preço do pedido (apenas se houver multa por cancelamento)
+    	custo DECIMAL(10, 2) DEFAULT 0, -- Preço do pedido (apenas se houver multa por cancelamento)
 	
-	CONSTRAINT PK_Pedido PRIMARY KEY (passageiro, time_aberto),
+	CONSTRAINT PK_Pedido PRIMARY KEY (id),
 	
 	-- Relação com passageiro e categoria
 	CONSTRAINT FK_Passageiro FOREIGN KEY (passageiro) REFERENCES Passageiro (cpf),
@@ -79,24 +79,23 @@ CREATE TABLE Pedido (
 
 /* Corridas */
 CREATE TABLE Corrida (
-	passageiro CHAR(11) NOT NULL,
+	id INT NOT NULL,
+	-- passageiro CHAR(11) NOT NULL,
 	motorista CHAR(11) NOT NULL,
-	categoria INT NOT NULL,
+	-- categoria INT NOT NULL,
 	time_inicio TIMESTAMP NOT NULL, -- Hora do início da corrida
 	time_fim TIMESTAMP, -- Hora do fim da corrida (NULL se estiver em andamento)
 	end_inicio VARCHAR NOT NULL, -- Local onde a corrida começou
 	end_fim VARCHAR NOT NULL, -- Local onde a corrida terminou (sujeito a mudanças durante a corrida)
 	avaliacao_motorista REAL, -- Avaliação de 1 a 5 que o passageiro deu para o motorista
 	avaliacao_passageiro REAL, -- Avaliação de 1 a 5 que o motorista deu para o passageiro
-    custo DECIMAL(15, 2), -- Preço a ser pago pelo passageiro
+    	custo DECIMAL(15, 2), -- Preço a ser pago pelo passageiro
 	
-	-- Primary key também poderia ser (motorista, time_inicio)
-	CONSTRAINT PK_Corrida PRIMARY KEY (passageiro, time_inicio),
+	CONSTRAINT PK_Corrida PRIMARY KEY (id),
 	
-	-- Relação ternária entre passageiro, motorista e categoria:
-	CONSTRAINT FK_Passageiro FOREIGN KEY (passageiro) REFERENCES Passageiro (cpf),
+	-- Relação entre pedido e motorista:
+	CONSTRAINT FK_Pedido FOREIGN KEY (id) REFERENCES Pedido (id),
 	CONSTRAINT FK_Motorista FOREIGN KEY (motorista) REFERENCES Motorista (cpf),
-	CONSTRAINT FK_Categoria FOREIGN KEY (categoria) REFERENCES Categoria (id)
 );
 
 
@@ -332,7 +331,7 @@ BEGIN
 		WHERE categoria.id = categoria_motorista;
 		
 		IF categoria_motorista IS NULL THEN
-			RAISE EXCEPTION 'Motorista de categoria inferior a da corrida';
+			RAISE EXCEPTION 'Motorista de categoria inferior à da corrida';
 		END IF;
 	END LOOP;
 	
@@ -343,6 +342,38 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER check_categoria
 BEFORE INSERT OR UPDATE ON Corrida
 FOR EACH ROW EXECUTE PROCEDURE check_categoria();
+
+/*
+TRIGGER 6: UBER SELECT
+Um motorista com avaliação média menor que 4.5 não pode fazer corridas da categoria "UberSelect",
+pois essa categoria é exclusiva para motoristas com notas altas.
+*/
+CREATE OR REPLACE FUNCTION uber_select() RETURNS trigger AS $$
+DECLARE
+	avaliacao_motorista REAL;
+	titulo_categoria VARCHAR;
+
+BEGIN
+	SELECT titulo INTO titulo_categoria FROM Categoria WHERE id = NEW.categoria;
+	
+	IF (titulo_categoria = 'UberSelect') THEN
+		SELECT avaliacao INTO avaliacao_motorista FROM Motorista WHERE cpf = NEW.motorista;
+
+		IF (avaliacao_motorista < 4.5) THEN
+			RAISE EXCEPTION 'Motorista tem avaliação menor que 4.5 e não pode fazer corridas UberSelect.';
+		END IF;
+	END IF;
+
+	RETURN NEW;
+    
+END;
+$$ LANGUAGE plpgsql;
+
+
+CREATE TRIGGER uber_select
+BEFORE INSERT OR UPDATE ON Corrida
+FOR EACH ROW EXECUTE PROCEDURE uber_select();
+
 
 
 /*
@@ -374,7 +405,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 /*
-PROCEDURE 1: RANKING DE AREAS COM MAIS CANCELAMENTOS
+PROCEDURE 1: RANKING DE ÁREAS COM MAIS CANCELAMENTOS
 Função imprime as áreas com mais cancelamentos
 */
 DROP FUNCTION IF EXISTS areas_problematicas();
@@ -398,7 +429,7 @@ $$ language plpgsql;
 
 
 /*
-PROCEDURE 2: ALGUMAS ESTATISTICAS
+PROCEDURE 2: ALGUMAS ESTATÍSTICAS
 Função que imprime algumas estatísticas sobre as corridas, como
 Número de corridas em certos intervalos de tempo e
 Média de nota dos motoristas por categoria
@@ -472,6 +503,7 @@ UPDATE Pedido SET status = 'cancelado pelo passageiro', time_selecionado = '2018
 -- UPDATE Pedido SET status = 'cancelado pelo passageiro' WHERE passageiro = '12345678910';
 -- UPDATE Pedido SET status = 'cancelado pelo motorista' WHERE passageiro = '12345678910';
 -- UPDATE Pedido SET status = 'atendido' WHERE passageiro = '12345678910';
+
 
 SELECT * FROM Passageiro;
 SELECT * FROM Categoria;
