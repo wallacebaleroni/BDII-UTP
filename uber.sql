@@ -49,9 +49,9 @@ CREATE TABLE Motorista (
 	nome VARCHAR NOT NULL,
 	email VARCHAR NOT NULL,
 	telefone INT NOT NULL,
-	carro INT NOT NULL, -- Cada motorista só pode ter um carro cadastrado no Uber
 	avaliacao REAL DEFAULT 0, -- Avaliação média do motorista, de 0 a 5
     total_corridas INT DEFAULT 0, -- Total de corridas que o motorista já concluiu
+	carro INT NOT NULL, -- Cada motorista só pode ter um carro cadastrado no Uber
 	
 	CONSTRAINT PK_Motorista PRIMARY KEY (cpf),
 	CONSTRAINT FK_Carro FOREIGN KEY (carro) REFERENCES Carro (renavam) -- Relação: motorista possui carro
@@ -60,8 +60,6 @@ CREATE TABLE Motorista (
 /* Pedidos de corridas (até o momento em que se tornam corridas) */
 CREATE TABLE Pedido (
 	id INT NOT NULL,
-	passageiro CHAR(11) NOT NULL,
-	categoria INT NOT NULL,
 	end_origem VARCHAR NOT NULL, -- Endereço de origem
 	end_destino VARCHAR NOT NULL, -- Endereço de destino
 	time_aberto TIMESTAMP NOT NULL, -- Hora em que o pedido foi iniciado
@@ -69,19 +67,19 @@ CREATE TABLE Pedido (
 	time_fechado TIMESTAMP, -- Hora em que o pedido foi fechado (atendido ou cancelado)
 	status VARCHAR DEFAULT 'aberto', -- "aberto" (buscando motorista) / "esperando motorista" / "atendido" (virou uma corrida) / "cancelado pelo motorista" / "cancelado pelo passageiro"
     custo DECIMAL(10, 2) DEFAULT 0, -- Preço do pedido (apenas se houver multa por cancelamento)
+	passageiro CHAR(11) NOT NULL,
+	categoria INT NOT NULL,
 	
-	CONSTRAINT PK_Pedido PRIMARY KEY (passageiro, time_aberto),
+	CONSTRAINT PK_Pedido PRIMARY KEY (id),
 	
 	-- Relação com passageiro e categoria
 	CONSTRAINT FK_Passageiro FOREIGN KEY (passageiro) REFERENCES Passageiro (cpf),
-	CONSTRAINT FK_categoria FOREIGN KEY (categoria) REFERENCES Categoria (id)
+	CONSTRAINT FK_Categoria FOREIGN KEY (categoria) REFERENCES Categoria (id)
 );
 
 /* Corridas */
 CREATE TABLE Corrida (
-	passageiro CHAR(11) NOT NULL,
-	motorista CHAR(11) NOT NULL,
-	categoria INT NOT NULL,
+	id INT NOT NULL,
 	time_inicio TIMESTAMP NOT NULL, -- Hora do início da corrida
 	time_fim TIMESTAMP, -- Hora do fim da corrida (NULL se estiver em andamento)
 	end_inicio VARCHAR NOT NULL, -- Local onde a corrida começou
@@ -89,14 +87,15 @@ CREATE TABLE Corrida (
 	avaliacao_motorista REAL, -- Avaliação de 1 a 5 que o passageiro deu para o motorista
 	avaliacao_passageiro REAL, -- Avaliação de 1 a 5 que o motorista deu para o passageiro
     custo DECIMAL(15, 2), -- Preço a ser pago pelo passageiro
+	pedido INT NOT NULL,
+	motorista CHAR(11) NOT NULL,
 	
 	-- Primary key também poderia ser (motorista, time_inicio)
-	CONSTRAINT PK_Corrida PRIMARY KEY (passageiro, time_inicio),
+	CONSTRAINT PK_Corrida PRIMARY KEY (id),
 	
 	-- Relação ternária entre passageiro, motorista e categoria:
-	CONSTRAINT FK_Passageiro FOREIGN KEY (passageiro) REFERENCES Passageiro (cpf),
+	CONSTRAINT FK_Pedido FOREIGN KEY (pedido) REFERENCES Pedido (id),
 	CONSTRAINT FK_Motorista FOREIGN KEY (motorista) REFERENCES Motorista (cpf),
-	CONSTRAINT FK_Categoria FOREIGN KEY (categoria) REFERENCES Categoria (id)
 );
 
 
@@ -237,7 +236,7 @@ BEGIN
 	
     SELECT COUNT(*)
     INTO count_passageiro
-	FROM Corrida
+	FROM Pedido -- parei aqui julha
 	WHERE passageiro = NEW.passageiro
     AND (time_fim IS NULL
 	OR NEW.time_inicio BETWEEN time_inicio AND time_fim);
