@@ -257,7 +257,7 @@ BEGIN
     INTO count_passageiro
 	FROM Pedido
 	WHERE passageiro = NEW.passageiro
-    AND (time_fim IS NULL
+    AND (time_fechado IS NULL
      OR NEW.time_aberto BETWEEN time_aberto AND time_fechado);
 	
 	IF (count_passageiro <> 0) THEN
@@ -517,11 +517,6 @@ INSERT INTO Motorista VALUES('12133454324', 'Marcos', 'marcos@uol.com', 84782478
 INSERT INTO Motorista VALUES('64578854645', 'Roger', 'roger@aol.com', 17654378, 9101, 3);
 INSERT INTO Motorista VALUES('68578220448', 'Fabio', 'fabio@dol.com', 42345618, 9102, 5);
 
-INSERT INTO Corrida VALUES(1, 1, '10293847560', '2018-06-14 16:00:00', '2018-06-14 17:00:00', 'Niterói', 'Rio', 5, 5);
-INSERT INTO Corrida VALUES(2, 2, '2018-06-14 18:00:00', '2018-06-14 19:00:00', 'Niterói', 'Rio', 4, 5);
--- INSERT INTO Corrida VALUES(3, 3, '10293847560', '2018-06-14 16:30:00', '2018-06-14 16:50:00', 'Niterói', 'Rio', 5, 5); -- Exceção: Corridas sobrepostas!
--- INSERT INTO Corrida VALUES(4, 4, '10293847560', '2018-06-14 20:00:00', '2018-06-14 21:00:00', 'Niterói', 'Rio', 4, 4); -- Exceção: Categoria errada!
-
 INSERT INTO Pedido VALUES(1, '12345678910', 3, 'Icarai', 'Ipanema', '2018-06-16 20:00:00', NULL, NULL);
 INSERT INTO Pedido VALUES(2, '12345678910', 3, 'Botafogo', 'Flamengo', '2018-06-16 20:00:01', NULL, NULL);
 INSERT INTO Pedido VALUES(3, '12345678910', 3, 'Botafogo', 'Ipanema', '2018-06-16 20:00:02', NULL, NULL);
@@ -536,6 +531,13 @@ UPDATE Pedido SET status = 'cancelado pelo passageiro', time_selecionado = '2018
 -- UPDATE Pedido SET status = 'cancelado pelo passageiro' WHERE passageiro = '12345678910';
 -- UPDATE Pedido SET status = 'cancelado pelo motorista' WHERE passageiro = '12345678910';
 -- UPDATE Pedido SET status = 'atendido' WHERE passageiro = '12345678910';
+
+
+INSERT INTO Corrida VALUES(1, 1, '10293847560', '2018-06-14 16:00:00', '2018-06-14 17:00:00', 'Niterói', 'Rio', 5, 5);
+INSERT INTO Corrida VALUES(2, 2, '2018-06-14 18:00:00', '2018-06-14 19:00:00', 'Niterói', 'Rio', 4, 5);
+-- INSERT INTO Corrida VALUES(3, 3, '10293847560', '2018-06-14 16:30:00', '2018-06-14 16:50:00', 'Niterói', 'Rio', 5, 5); -- Exceção: Corridas sobrepostas!
+-- INSERT INTO Corrida VALUES(4, 4, '10293847560', '2018-06-14 20:00:00', '2018-06-14 21:00:00', 'Niterói', 'Rio', 4, 4); -- Exceção: Categoria errada!
+
 
 
 SELECT * FROM Passageiro;
