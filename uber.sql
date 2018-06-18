@@ -51,7 +51,6 @@ CREATE TABLE Motorista (
 	telefone INT NOT NULL,
 	avaliacao REAL DEFAULT 0, -- Avaliação média do motorista, de 0 a 5
     total_corridas INT DEFAULT 0, -- Total de corridas que o motorista já concluiu
-	carro INT NOT NULL, -- Cada motorista só pode ter um carro cadastrado no Uber
 	
 	CONSTRAINT PK_Motorista PRIMARY KEY (cpf),
 	CONSTRAINT FK_Carro FOREIGN KEY (carro) REFERENCES Carro (renavam) -- Relação: motorista possui carro
@@ -331,7 +330,7 @@ BEGIN
 		WHERE categoria.id = categoria_motorista;
 		
 		IF categoria_motorista IS NULL THEN
-			RAISE EXCEPTION 'Motorista de categoria inferior a da corrida';
+			RAISE EXCEPTION 'Motorista de categoria inferior à da corrida';
 		END IF;
 	END LOOP;
 	
@@ -342,6 +341,38 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER check_categoria
 BEFORE INSERT OR UPDATE ON Corrida
 FOR EACH ROW EXECUTE PROCEDURE check_categoria();
+
+/*
+TRIGGER 6: UBER SELECT
+Um motorista com avaliação média menor que 4.5 não pode fazer corridas da categoria "UberSelect",
+pois essa categoria é exclusiva para motoristas com notas altas.
+*/
+CREATE OR REPLACE FUNCTION uber_select() RETURNS trigger AS $$
+DECLARE
+	avaliacao_motorista REAL;
+	titulo_categoria VARCHAR;
+
+BEGIN
+	SELECT titulo INTO titulo_categoria FROM Categoria WHERE id = NEW.categoria;
+	
+	IF (titulo_categoria = 'UberSelect') THEN
+		SELECT avaliacao INTO avaliacao_motorista FROM Motorista WHERE cpf = NEW.motorista;
+
+		IF (avaliacao_motorista < 4.5) THEN
+			RAISE EXCEPTION 'Motorista tem avaliação menor que 4.5 e não pode fazer corridas UberSelect.';
+		END IF;
+	END IF;
+
+	RETURN NEW;
+    
+END;
+$$ LANGUAGE plpgsql;
+
+
+CREATE TRIGGER uber_select
+BEFORE INSERT OR UPDATE ON Corrida
+FOR EACH ROW EXECUTE PROCEDURE uber_select();
+
 
 
 /*
@@ -373,7 +404,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 /*
-PROCEDURE 1: RANKING DE AREAS COM MAIS CANCELAMENTOS
+PROCEDURE 1: RANKING DE ÁREAS COM MAIS CANCELAMENTOS
 Função imprime as áreas com mais cancelamentos
 */
 DROP FUNCTION IF EXISTS areas_problematicas();
@@ -397,7 +428,7 @@ $$ language plpgsql;
 
 
 /*
-PROCEDURE 2: ALGUMAS ESTATISTICAS
+PROCEDURE 2: ALGUMAS ESTATÍSTICAS
 Função que imprime algumas estatísticas sobre as corridas, como
 Número de corridas em certos intervalos de tempo e
 Média de nota dos motoristas por categoria
@@ -471,6 +502,7 @@ UPDATE Pedido SET status = 'cancelado pelo passageiro', time_selecionado = '2018
 -- UPDATE Pedido SET status = 'cancelado pelo passageiro' WHERE passageiro = '12345678910';
 -- UPDATE Pedido SET status = 'cancelado pelo motorista' WHERE passageiro = '12345678910';
 -- UPDATE Pedido SET status = 'atendido' WHERE passageiro = '12345678910';
+
 
 SELECT * FROM Passageiro;
 SELECT * FROM Categoria;
