@@ -49,6 +49,7 @@ CREATE TABLE Motorista (
 	nome VARCHAR NOT NULL,
 	email VARCHAR NOT NULL,
 	telefone INT NOT NULL,
+	carro INT NOT NULL,
 	avaliacao REAL DEFAULT 0, -- Avaliação média do motorista, de 0 a 5
     total_corridas INT DEFAULT 0, -- Total de corridas que o motorista já concluiu
 	
@@ -94,7 +95,7 @@ CREATE TABLE Corrida (
 	
 	-- Relação ternária entre passageiro, motorista e categoria:
 	CONSTRAINT FK_Pedido FOREIGN KEY (pedido) REFERENCES Pedido (id),
-	CONSTRAINT FK_Motorista FOREIGN KEY (motorista) REFERENCES Motorista (cpf),
+	CONSTRAINT FK_Motorista FOREIGN KEY (motorista) REFERENCES Motorista (cpf)
 );
 
 
@@ -316,8 +317,14 @@ CREATE OR REPLACE FUNCTION check_categoria() RETURNS trigger AS $$
 DECLARE
 	categoria_corrida INT;
 	categoria_motorista INT;
+	id_pedido INT;
 BEGIN
-	categoria_corrida = NEW.categoria;
+	id_pedido = NEW.pedido;
+	SELECT categoria 
+	INTO categoria_corrida
+	FROM pedido
+	WHERE pedido.id = id_pedido;
+
 	SELECT categoria 
 	INTO categoria_motorista 
 	FROM motorista INNER JOIN carro ON motorista.carro = carro.renavam
@@ -350,13 +357,26 @@ pois essa categoria é exclusiva para motoristas com notas altas.
 CREATE OR REPLACE FUNCTION uber_select() RETURNS trigger AS $$
 DECLARE
 	avaliacao_motorista REAL;
-	titulo_categoria VARCHAR;
-
+	id_categoria VARCHAR;
+	id_pedido INT;
+	categoria_pedido INT;
 BEGIN
-	SELECT titulo INTO titulo_categoria FROM Categoria WHERE id = NEW.categoria;
+	id_pedido = NEW.pedido;
+	SELECT categoria
+	INTO categoria_pedido
+	FROM Pedido
+	WHERE id = id_pedido;
+
+	SELECT id
+	INTO id_categoria
+	FROM Categoria 
+	WHERE id = categoria_pedido;
 	
-	IF (titulo_categoria = 'UberSelect') THEN
-		SELECT avaliacao INTO avaliacao_motorista FROM Motorista WHERE cpf = NEW.motorista;
+	IF (id_categoria = 4) THEN
+		SELECT avaliacao 
+		INTO avaliacao_motorista 
+		FROM Motorista 
+		WHERE cpf = NEW.motorista;
 
 		IF (avaliacao_motorista < 4.5) THEN
 			RAISE EXCEPTION 'Motorista tem avaliação menor que 4.5 e não pode fazer corridas UberSelect.';
@@ -367,7 +387,6 @@ BEGIN
     
 END;
 $$ LANGUAGE plpgsql;
-
 
 CREATE TRIGGER uber_select
 BEFORE INSERT OR UPDATE ON Corrida
@@ -483,10 +502,10 @@ INSERT INTO Motorista VALUES('12133454324', 'Marcos', 'marcos@uol.com', 84782478
 INSERT INTO Motorista VALUES('64578854645', 'Roger', 'roger@aol.com', 17654378, 9101, 3);
 INSERT INTO Motorista VALUES('68578220448', 'Fabio', 'fabio@dol.com', 42345618, 9102, 5);
 
-INSERT INTO Corrida VALUES('12345678910', '10293847560', 2, '2018-06-14 16:00:00', '2018-06-14 17:00:00', 'Niterói', 'Rio', 5, 5);
-INSERT INTO Corrida VALUES('69696969696', '10293847560', 2, '2018-06-14 18:00:00', '2018-06-14 19:00:00', 'Niterói', 'Rio', 4, 5);
--- INSERT INTO Corrida VALUES('98765432100', '10293847560', 2, '2018-06-14 16:30:00', '2018-06-14 16:50:00', 'Niterói', 'Rio', 5, 5); -- Exceção: Corridas sobrepostas!
--- INSERT INTO Corrida VALUES('69696969696', '10293847560', 3, '2018-06-14 20:00:00', '2018-06-14 21:00:00', 'Niterói', 'Rio', 4, 4); -- Exceção: Categoria errada!
+INSERT INTO Corrida VALUES(1, '2018-06-14 16:00:00', '2018-06-14 17:00:00', 'Niterói', 'Rio', '12345678910', '10293847560', 5, 5);
+INSERT INTO Corrida VALUES(2, '2018-06-14 18:00:00', '2018-06-14 19:00:00', 'Niterói', 'Rio', '69696969696', '10293847560', 4, 5);
+-- INSERT INTO Corrida VALUES(3, '2018-06-14 16:30:00', '2018-06-14 16:50:00', 'Niterói', 'Rio', '98765432100', '10293847560', 5, 5); -- Exceção: Corridas sobrepostas!
+-- INSERT INTO Corrida VALUES(4, '2018-06-14 20:00:00', '2018-06-14 21:00:00', 'Niterói', 'Rio', '69696969696', '10293847560', 4, 4); -- Exceção: Categoria errada!
 
 INSERT INTO Pedido VALUES(1, '12345678910', 3, 'Icarai', 'Ipanema', '2018-06-16 20:00:00', NULL, NULL);
 INSERT INTO Pedido VALUES(2, '12345678910', 3, 'Botafogo', 'Flamengo', '2018-06-16 20:00:01', NULL, NULL);
