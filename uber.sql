@@ -60,6 +60,8 @@ CREATE TABLE Motorista (
 /* Pedidos de corridas (até o momento em que se tornam corridas) */
 CREATE TABLE Pedido (
 	id INT NOT NULL,
+	passageiro CHAR(11) NOT NULL,
+	categoria INT NOT NULL,
 	end_origem VARCHAR NOT NULL, -- Endereço de origem
 	end_destino VARCHAR NOT NULL, -- Endereço de destino
 	time_aberto TIMESTAMP NOT NULL, -- Hora em que o pedido foi iniciado
@@ -67,8 +69,6 @@ CREATE TABLE Pedido (
 	time_fechado TIMESTAMP, -- Hora em que o pedido foi fechado (atendido ou cancelado)
 	status VARCHAR DEFAULT 'aberto', -- "aberto" (buscando motorista) / "esperando motorista" / "atendido" (virou uma corrida) / "cancelado pelo motorista" / "cancelado pelo passageiro"
     custo DECIMAL(10, 2) DEFAULT 0, -- Preço do pedido (apenas se houver multa por cancelamento)
-	passageiro CHAR(11) NOT NULL,
-	categoria INT NOT NULL,
 	
 	CONSTRAINT PK_Pedido PRIMARY KEY (id),
 	
@@ -80,6 +80,8 @@ CREATE TABLE Pedido (
 /* Corridas */
 CREATE TABLE Corrida (
 	id INT NOT NULL,
+	pedido INT NOT NULL,
+	motorista CHAR(11) NOT NULL,
 	time_inicio TIMESTAMP NOT NULL, -- Hora do início da corrida
 	time_fim TIMESTAMP, -- Hora do fim da corrida (NULL se estiver em andamento)
 	end_inicio VARCHAR NOT NULL, -- Local onde a corrida começou
@@ -87,10 +89,7 @@ CREATE TABLE Corrida (
 	avaliacao_motorista REAL, -- Avaliação de 1 a 5 que o passageiro deu para o motorista
 	avaliacao_passageiro REAL, -- Avaliação de 1 a 5 que o motorista deu para o passageiro
     custo DECIMAL(15, 2), -- Preço a ser pago pelo passageiro
-	pedido INT NOT NULL,
-	motorista CHAR(11) NOT NULL,
 	
-	-- Primary key também poderia ser (motorista, time_inicio)
 	CONSTRAINT PK_Corrida PRIMARY KEY (id),
 	
 	-- Relação ternária entre passageiro, motorista e categoria:
@@ -218,13 +217,12 @@ FOR EACH ROW EXECUTE PROCEDURE atualizar_pedido();
 
 
 /*
-TRIGGER 3: CORRIDAS SOBREPOSTAS
-Impedir que corridas com o mesmo passageiro ou o mesmo motorista sejam inseridas em horários sobrepostos
+TRIGGER 3.1: CORRIDAS SOBREPOSTAS
+Impedir que corridas com o mesmo motorista sejam inseridas em horários sobrepostos.
 */
 CREATE OR REPLACE FUNCTION corridas_sobrepostas() RETURNS trigger AS $$
 DECLARE
 	count_motorista INTEGER;
-	count_passageiro INTEGER;
 
 BEGIN
 	SELECT COUNT(*)
@@ -233,31 +231,48 @@ BEGIN
 	WHERE motorista = NEW.motorista
     AND (time_fim IS NULL
      OR NEW.time_inicio BETWEEN time_inicio AND time_fim);
-	
-    SELECT COUNT(*)
-    INTO count_passageiro
-	FROM Pedido -- parei aqui julha
-	WHERE passageiro = NEW.passageiro
-    AND (time_fim IS NULL
-	OR NEW.time_inicio BETWEEN time_inicio AND time_fim);
-	
     
 	IF (count_motorista <> 0) THEN
 		RAISE EXCEPTION 'Um motorista não pode fazer corridas sobrepostas.';
 	END IF;
 	
-	IF (count_passageiro <> 0) THEN
-		RAISE EXCEPTION 'Um passageiro não pode fazer corridas sobrepostas.';
-	END IF;
-	
 	RETURN NEW;
-	
 END;
 $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER corridas_sobrepostas
 BEFORE INSERT ON Corrida
 FOR EACH ROW EXECUTE PROCEDURE corridas_sobrepostas();
+
+/*
+TRIGGER 3.2: PEDIDOS SOBREPOSTOS
+Impedir que pedidos sejam feitos pelo mesmo passageiro em horários sobrepostos.
+*/
+CREATE OR REPLACE FUNCTION pedidos_sobrepostos() RETURNS trigger AS $$
+DECLARE
+	count_passageiro INTEGER;
+
+BEGIN
+	SELECT COUNT(*)
+    INTO count_passageiro
+	FROM Pedido
+	WHERE passageiro = NEW.passageiro
+    AND (time_fechado IS NULL
+     OR NEW.time_aberto BETWEEN time_aberto AND time_fechado);
+	
+	IF (count_passageiro <> 0) THEN
+		RAISE EXCEPTION 'Um passageiro não pode fazer pedidos sobrepostos.';
+	END IF;
+	
+	RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+
+CREATE TRIGGER pedidos_sobrepostos
+BEFORE INSERT ON Pedido
+FOR EACH ROW EXECUTE PROCEDURE pedidos_sobrepostos();
+
 
 
 /*
@@ -502,11 +517,6 @@ INSERT INTO Motorista VALUES('12133454324', 'Marcos', 'marcos@uol.com', 84782478
 INSERT INTO Motorista VALUES('64578854645', 'Roger', 'roger@aol.com', 17654378, 9101, 3);
 INSERT INTO Motorista VALUES('68578220448', 'Fabio', 'fabio@dol.com', 42345618, 9102, 5);
 
-INSERT INTO Corrida VALUES(1, '2018-06-14 16:00:00', '2018-06-14 17:00:00', 'Niterói', 'Rio', '12345678910', '10293847560', 5, 5);
-INSERT INTO Corrida VALUES(2, '2018-06-14 18:00:00', '2018-06-14 19:00:00', 'Niterói', 'Rio', '69696969696', '10293847560', 4, 5);
--- INSERT INTO Corrida VALUES(3, '2018-06-14 16:30:00', '2018-06-14 16:50:00', 'Niterói', 'Rio', '98765432100', '10293847560', 5, 5); -- Exceção: Corridas sobrepostas!
--- INSERT INTO Corrida VALUES(4, '2018-06-14 20:00:00', '2018-06-14 21:00:00', 'Niterói', 'Rio', '69696969696', '10293847560', 4, 4); -- Exceção: Categoria errada!
-
 INSERT INTO Pedido VALUES(1, '12345678910', 3, 'Icarai', 'Ipanema', '2018-06-16 20:00:00', NULL, NULL);
 INSERT INTO Pedido VALUES(2, '12345678910', 3, 'Botafogo', 'Flamengo', '2018-06-16 20:00:01', NULL, NULL);
 INSERT INTO Pedido VALUES(3, '12345678910', 3, 'Botafogo', 'Ipanema', '2018-06-16 20:00:02', NULL, NULL);
@@ -521,6 +531,13 @@ UPDATE Pedido SET status = 'cancelado pelo passageiro', time_selecionado = '2018
 -- UPDATE Pedido SET status = 'cancelado pelo passageiro' WHERE passageiro = '12345678910';
 -- UPDATE Pedido SET status = 'cancelado pelo motorista' WHERE passageiro = '12345678910';
 -- UPDATE Pedido SET status = 'atendido' WHERE passageiro = '12345678910';
+
+
+INSERT INTO Corrida VALUES(1, 1, '10293847560', '2018-06-14 16:00:00', '2018-06-14 17:00:00', 'Niterói', 'Rio', 5, 5);
+INSERT INTO Corrida VALUES(2, 2, '2018-06-14 18:00:00', '2018-06-14 19:00:00', 'Niterói', 'Rio', 4, 5);
+-- INSERT INTO Corrida VALUES(3, 3, '10293847560', '2018-06-14 16:30:00', '2018-06-14 16:50:00', 'Niterói', 'Rio', 5, 5); -- Exceção: Corridas sobrepostas!
+-- INSERT INTO Corrida VALUES(4, 4, '10293847560', '2018-06-14 20:00:00', '2018-06-14 21:00:00', 'Niterói', 'Rio', 4, 4); -- Exceção: Categoria errada!
+
 
 
 SELECT * FROM Passageiro;
