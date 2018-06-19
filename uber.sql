@@ -251,14 +251,13 @@ Impedir que pedidos sejam feitos pelo mesmo passageiro em horários sobrepostos.
 CREATE OR REPLACE FUNCTION pedidos_sobrepostos() RETURNS trigger AS $$
 DECLARE
 	count_passageiro INTEGER;
-
 BEGIN
 	SELECT COUNT(*)
-    INTO count_passageiro
+   	INTO count_passageiro
 	FROM Pedido
 	WHERE passageiro = NEW.passageiro
-    AND (time_fechado IS NULL
-     OR NEW.time_aberto BETWEEN time_aberto AND time_fechado);
+    	AND (time_fechado IS NULL
+     	OR NEW.time_aberto BETWEEN time_aberto AND time_fechado);
 	
 	IF (count_passageiro <> 0) THEN
 		RAISE EXCEPTION 'Um passageiro não pode fazer pedidos sobrepostos.';
@@ -268,11 +267,9 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-
 CREATE TRIGGER pedidos_sobrepostos
 BEFORE INSERT ON Pedido
 FOR EACH ROW EXECUTE PROCEDURE pedidos_sobrepostos();
-
 
 
 /*
@@ -288,11 +285,19 @@ DECLARE
     total_corridas_passageiro INTEGER;
     media_antiga_passageiro REAL;
     nova_media_passageiro REAL;
-    
+	
+	cpf_passageiro VARCHAR;    
 BEGIN
     IF (NEW.avaliacao_motorista IS NOT NULL) THEN
-        SELECT total_corridas INTO total_corridas_motorista FROM Motorista WHERE cpf = NEW.motorista;
-        SELECT avaliacao INTO media_antiga_motorista FROM Motorista WHERE cpf = NEW.motorista;
+        SELECT total_corridas 
+		INTO total_corridas_motorista 
+		FROM Motorista 
+		WHERE cpf = NEW.motorista;
+        
+		SELECT avaliacao 
+		INTO media_antiga_motorista 
+		FROM Motorista 
+		WHERE cpf = NEW.motorista;
 
         nova_media_motorista := ((total_corridas_motorista * media_antiga_motorista) + NEW.avaliacao_motorista) / (total_corridas_motorista + 1);
         
@@ -303,14 +308,26 @@ BEGIN
 
     
     IF (NEW.avaliacao_passageiro IS NOT NULL) THEN
-        SELECT total_corridas INTO total_corridas_passageiro FROM Passageiro WHERE cpf = NEW.passageiro;
-        SELECT avaliacao INTO media_antiga_passageiro FROM Passageiro WHERE cpf = NEW.passageiro;
+		SELECT passageiro
+		INTO cpf_passageiro
+		FROM Pedido
+		WHERE NEW.pedido = id;
+		
+        SELECT total_corridas 
+		INTO total_corridas_passageiro 
+		FROM Passageiro 
+		WHERE cpf = cpf_passageiro;
+		
+        SELECT avaliacao 
+		INTO media_antiga_passageiro 
+		FROM Passageiro 
+		WHERE cpf = cpf_passageiro;
 
         nova_media_passageiro := ((total_corridas_passageiro * media_antiga_passageiro) + NEW.avaliacao_passageiro) / (total_corridas_passageiro + 1);
 
         UPDATE Passageiro
         SET avaliacao = nova_media_passageiro, total_corridas = total_corridas + 1
-        WHERE CPF = NEW.passageiro;
+        WHERE CPF = cpf_passageiro;
     END IF;
 	
 	RETURN NEW;
@@ -334,6 +351,12 @@ DECLARE
 	categoria_motorista INT;
 	id_pedido INT;
 BEGIN
+	IF OLD <> NULL THEN
+		IF OLD.motorista = NEW.motorista THEN
+			RETURN NEW;
+		END IF;
+	END IF;
+	
 	id_pedido = NEW.pedido;
 	SELECT categoria 
 	INTO categoria_corrida
@@ -372,7 +395,7 @@ pois essa categoria é exclusiva para motoristas com notas altas.
 CREATE OR REPLACE FUNCTION uber_select() RETURNS trigger AS $$
 DECLARE
 	avaliacao_motorista REAL;
-	id_categoria VARCHAR;
+	id_categoria INT;
 	id_pedido INT;
 	categoria_pedido INT;
 BEGIN
@@ -387,7 +410,7 @@ BEGIN
 	FROM Categoria 
 	WHERE id = categoria_pedido;
 	
-	IF (id_categoria = 4) THEN
+	IF id_categoria = 4 THEN
 		SELECT avaliacao 
 		INTO avaliacao_motorista 
 		FROM Motorista 
@@ -517,27 +540,33 @@ INSERT INTO Motorista VALUES('12133454324', 'Marcos', 'marcos@uol.com', 84782478
 INSERT INTO Motorista VALUES('64578854645', 'Roger', 'roger@aol.com', 17654378, 9101, 3);
 INSERT INTO Motorista VALUES('68578220448', 'Fabio', 'fabio@dol.com', 42345618, 9102, 5);
 
-INSERT INTO Pedido VALUES(1, '12345678910', 3, 'Icarai', 'Ipanema', '2018-06-16 20:00:00', NULL, NULL);
-INSERT INTO Pedido VALUES(2, '12345678910', 3, 'Botafogo', 'Flamengo', '2018-06-16 20:00:01', NULL, NULL);
-INSERT INTO Pedido VALUES(3, '12345678910', 3, 'Botafogo', 'Ipanema', '2018-06-16 20:00:02', NULL, NULL);
-INSERT INTO Pedido VALUES(4, '12345678910', 3, 'Flamengo', 'Icarai', '2018-06-16 20:00:03', NULL, NULL);
-INSERT INTO Pedido VALUES(5, '12345678910', 3, 'Flamengo', 'Botafogo', '2018-06-16 20:00:04', NULL, NULL);
+INSERT INTO Pedido VALUES(1, '12345678910', 2, 'Icarai', 'Ipanema', '2018-06-16 20:00:00', NULL, NULL);
+UPDATE Pedido SET status = 'cancelado pelo motorista', time_selecionado = '2018-06-16 21:05:00' WHERE id = 1;
 
-UPDATE Pedido SET status = 'cancelado pelo motorista', time_selecionado = '2018-06-16 20:05:00' WHERE id = 1;
-UPDATE Pedido SET status = 'atendido', time_selecionado = '2018-06-16 20:05:00' WHERE id = 2;
-UPDATE Pedido SET status = 'cancelado pelo passageiro', time_selecionado = '2018-06-16 20:05:00' WHERE id = 3;
-UPDATE Pedido SET status = 'atendido', time_selecionado = '2018-06-16 20:05:00' WHERE id = 4;
-UPDATE Pedido SET status = 'cancelado pelo passageiro', time_selecionado = '2018-06-16 20:05:00' WHERE id = 5;
--- UPDATE Pedido SET status = 'cancelado pelo passageiro' WHERE passageiro = '12345678910';
--- UPDATE Pedido SET status = 'cancelado pelo motorista' WHERE passageiro = '12345678910';
--- UPDATE Pedido SET status = 'atendido' WHERE passageiro = '12345678910';
+INSERT INTO Pedido VALUES(2, '12345678910', 3, 'Botafogo', 'Flamengo', '2018-06-16 21:00:01', NULL, NULL);
+UPDATE Pedido SET status = 'atendido', time_selecionado = '2018-06-16 22:05:00' WHERE id = 2;
+
+--INSERT INTO Pedido VALUES(3, '12345678910', 3, 'Botafogo', 'Ipanema', '2018-06-16 22:00:02', NULL, NULL);
+UPDATE Pedido SET status = 'cancelado pelo passageiro', time_selecionado = '2018-06-16 23:05:00' WHERE id = 3;
+
+--INSERT INTO Pedido VALUES(4, '12345678910', 3, 'Flamengo', 'Icarai', '2018-06-16 23:00:03', NULL, NULL);
+UPDATE Pedido SET status = 'atendido', time_selecionado = '2018-06-16 19:05:00' WHERE id = 4;
+
+--INSERT INTO Pedido VALUES(5, '12345678910', 3, 'Flamengo', 'Botafogo', '2018-06-16 19:00:04', NULL, NULL);
+UPDATE Pedido SET status = 'cancelado pelo passageiro', time_selecionado = '2018-06-16 17:05:00' WHERE id = 5;
+
+	SELECT COUNT(*)
+   	INTO count_passageiro
+	FROM Pedido
+	WHERE passageiro = NEW.passageiro
+    	AND (time_fechado IS NULL
+     	OR NEW.time_aberto BETWEEN time_aberto AND time_fechado);
 
 
 INSERT INTO Corrida VALUES(1, 1, '10293847560', '2018-06-14 16:00:00', '2018-06-14 17:00:00', 'Niterói', 'Rio', 5, 5);
-INSERT INTO Corrida VALUES(2, 2, '2018-06-14 18:00:00', '2018-06-14 19:00:00', 'Niterói', 'Rio', 4, 5);
+INSERT INTO Corrida VALUES(2, 1, '10293847560', '2018-06-14 18:00:00', '2018-06-14 19:00:00', 'Niterói', 'Rio', 4, 5);
 -- INSERT INTO Corrida VALUES(3, 3, '10293847560', '2018-06-14 16:30:00', '2018-06-14 16:50:00', 'Niterói', 'Rio', 5, 5); -- Exceção: Corridas sobrepostas!
 -- INSERT INTO Corrida VALUES(4, 4, '10293847560', '2018-06-14 20:00:00', '2018-06-14 21:00:00', 'Niterói', 'Rio', 4, 4); -- Exceção: Categoria errada!
-
 
 
 SELECT * FROM Passageiro;
